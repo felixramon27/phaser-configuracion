@@ -303,22 +303,31 @@ function create() {
 
 function update(time, delta) {
   redVelocity.set(0, 0); // Reinicia la velocidad de "red"
+  let lastFrame = 0; // Variable para guardar el último frame
 
   // Control manual para "red"
   if (this.keys.up.isDown) {
     redVelocity.y = -200;
     this.red.anims.play("red-walk-up", true);
+    lastFrame = 12; // Último frame de la animación hacia arriba
   } else if (this.keys.down.isDown) {
     redVelocity.y = 200;
     this.red.anims.play("red-walk-down", true);
+    lastFrame = 1; // Último frame de la animación hacia abajo
   } else if (this.keys.left.isDown) {
     redVelocity.x = -200;
     this.red.anims.play("red-walk-left", true);
+    lastFrame = 4; // Último frame de la animación hacia la izquierda
   } else if (this.keys.right.isDown) {
     redVelocity.x = 200;
     this.red.anims.play("red-walk-right", true);
+    lastFrame = 8; // Último frame de la animación hacia la derecha
   } else {
-    this.red.anims.play("red-idle", true);
+    this.red.anims.stop(); // Detenemos la animación
+    // Solo establecer el último frame si se ha movido antes
+    if (lastFrame > 0) {
+      this.red.setFrame(lastFrame); // Establecemos el último frame
+    }
   }
 
   // Mueve manualmente a "red"
@@ -345,18 +354,33 @@ function update(time, delta) {
     this.red.y - this.green.y
   ).normalize();
 
-  // Determina la animación de "green" según la dirección
-  if (Math.abs(direction.x) > Math.abs(direction.y)) {
-    if (direction.x > 0) {
-      this.green.anims.play("green-walk-right", true); // Usa la animación de caminar a la derecha de "red"
+  // Verifica la distancia entre "red" y "green"
+  const distance = Phaser.Math.Distance.Between(
+    this.red.x,
+    this.red.y,
+    this.green.x,
+    this.green.y
+  );
+  const stoppingDistance = 20; // Distancia para detener a "green"
+
+  if (distance > stoppingDistance) {
+    // Determina la animación de "green" según la dirección
+    if (Math.abs(direction.x) > Math.abs(direction.y)) {
+      if (direction.x > 0) {
+        this.green.anims.play("green-walk-right", true);
+      } else {
+        this.green.anims.play("green-walk-left", true);
+      }
     } else {
-      this.green.anims.play("green-walk-left", true); // Usa la animación de caminar a la izquierda de "red"
+      if (direction.y > 0) {
+        this.green.anims.play("green-walk-down", true);
+      } else {
+        this.green.anims.play("green-walk-up", true);
+      }
     }
   } else {
-    if (direction.y > 0) {
-      this.green.anims.play("green-walk-down", true); // Usa la animación de caminar hacia abajo de "red"
-    } else {
-      this.green.anims.play("green-walk-up", true); // Usa la animación de caminar hacia arriba de "red"
-    }
+    // Detiene la animación y la posición de "green" cuando alcanza a "red"
+    this.green.anims.stop();
+    this.green.setFrame(0); // O el último frame que desees mostrar
   }
 }
