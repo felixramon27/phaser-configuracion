@@ -1,124 +1,9 @@
-class SteeringOutput {
-  constructor() {
-    this.linear = new Phaser.Math.Vector2(); // Para el movimiento
-    this.angular = 0; // Para la rotación
-  }
-}
-
-class Kinematic {
-  constructor(position, velocity, orientation, rotation) {
-    this.position = position; // Vector2
-    this.velocity = velocity; // Vector2
-    this.orientation = orientation; // Ángulo en radianes
-    this.rotation = rotation; // Ángulo de rotación
-  }
-
-  update(steering, time) {
-    // Actualiza la posición y orientación
-    this.position.x += this.velocity.x * time;
-    this.position.y += this.velocity.y * time;
-    this.orientation += this.rotation * time;
-
-    // Actualiza la velocidad y rotación
-    this.velocity.x += steering.linear.x * time;
-    this.velocity.y += steering.linear.y * time;
-    this.rotation += steering.angular * time;
-  }
-}
-
-class Arrive {
-  constructor(
-    character,
-    target,
-    maxAcceleration,
-    maxSpeed,
-    targetRadius,
-    slowRadius
-  ) {
-    this.character = character;
-    this.target = target;
-    this.maxAcceleration = maxAcceleration;
-    this.maxSpeed = maxSpeed;
-    this.targetRadius = targetRadius;
-    this.slowRadius = slowRadius;
-    this.timeToTarget = 0.1;
-  }
-
-  getSteering() {
-    let result = new SteeringOutput();
-
-    let direction = this.target.position
-      .clone()
-      .subtract(this.character.position);
-    let distance = direction.length();
-
-    if (distance < this.targetRadius) {
-      return null; // No hace falta movimiento
-    }
-
-    let targetSpeed =
-      distance > this.slowRadius
-        ? this.maxSpeed
-        : this.maxSpeed * (distance / this.slowRadius);
-    let targetVelocity = direction.normalize().scale(targetSpeed);
-
-    result.linear = targetVelocity
-      .subtract(this.character.velocity)
-      .scale(1 / this.timeToTarget);
-
-    if (result.linear.length() > this.maxAcceleration) {
-      result.linear = result.linear.normalize().scale(this.maxAcceleration);
-    }
-
-    result.angular = 0;
-    return result;
-  }
-}
-
-class Seek {
-  constructor(character, target, maxAcceleration) {
-    this.character = character;
-    this.target = target;
-    this.maxAcceleration = maxAcceleration;
-  }
-
-  getSteering() {
-    let result = new SteeringOutput();
-    // Flee es lo opuesto a Seek, así que invertimos el signo
-    result.linear = this.character.position
-      .clone()
-      .subtract(this.target.position);
-    result.linear.normalize().scale(this.maxAcceleration);
-    result.angular = 0;
-    return result;
-  }
-}
-
-class Flee {
-  constructor(character, target, maxAcceleration, safeDistance) {
-    this.character = character;
-    this.target = target;
-    this.maxAcceleration = maxAcceleration;
-    this.safeDistance = safeDistance; // Distancia a la que deja de huir
-  }
-
-  getSteering() {
-    let result = new SteeringOutput();
-    let direction = this.character.position
-      .clone()
-      .subtract(this.target.position);
-    let distance = direction.length();
-
-    // Si la distancia es mayor que la distancia segura, no huir
-    if (distance > this.safeDistance) {
-      return null; // No hace falta movimiento
-    }
-
-    result.linear = direction.normalize().scale(this.maxAcceleration);
-    result.angular = 0;
-    return result;
-  }
-}
+import { Kinematic } from "./classes/Kinematic.js";
+import { Arrive } from "./classes/Arrive.js";
+import { KinematicArrive } from "./classes/KinematicArrive.js";
+import { Flee } from "./classes/Flee.js";
+import { Seek } from "./classes/Seek.js";
+import { Wander } from "./classes/Wander.js";
 
 const config = {
   width: 1480,
@@ -135,7 +20,13 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-let kinematicGreen, arriveBehavior, fleeBehavior, currentBehavior; // Variables globales
+let kinematicGreen,
+  arriveBehavior,
+  fleeBehavior,
+  currentBehavior,
+  wanderBehavior,
+  kinematicArrive,
+  seekBehavior; // Variables globales
 let redVelocity; // Variable para controlar el movimiento de "red"
 
 function preload() {
@@ -254,6 +145,14 @@ function create() {
     0
   );
 
+  kinematicArrive = new KinematicArrive(
+    kinematicGreen,
+    { position: new Phaser.Math.Vector2(this.red.x, this.red.y) },
+    200, // maxSpeed
+    50, // Radio objetivo
+    100 // Radio de desaceleración
+  );
+
   // Inicializa el comportamiento de Arrive para green siguiendo a red
   arriveBehavior = new Arrive(
     kinematicGreen,
@@ -272,6 +171,16 @@ function create() {
     150
   ); // 150 es la distancia segura
 
+  // Inicializa los comportamientos
+  seekBehavior = new Seek(
+    kinematicGreen,
+    { position: new Phaser.Math.Vector2(this.red.x, this.red.y) },
+    200, // maxAcceleration
+  );
+
+  // Inicializa el Wander para movimientos erráticos
+  wanderBehavior = new Wander(kinematicGreen, 200, 1); // 1 radian como rotación máxima
+
   // Inicializa la velocidad del personaje "red"
   redVelocity = new Phaser.Math.Vector2(0, 0);
   // Inicializa el comportamiento actual como Arrive
@@ -281,11 +190,20 @@ function create() {
   // const buttonArrive = this.add.sprite(50, 150, "button").setInteractive();
   // const buttonFlee = this.add.sprite(50, 50, "button").setInteractive();
 
+  const buttonKinematicArrive = this.add
+    .rectangle(350, 50, 80, 30, 0xf00f0f)
+    .setInteractive();
   const buttonArrive = this.add
     .rectangle(50, 50, 80, 30, 0x00ff00)
     .setInteractive();
   const buttonFlee = this.add
     .rectangle(150, 50, 80, 30, 0xff0000)
+    .setInteractive();
+  const buttonSeek = this.add
+    .rectangle(450, 50, 80, 30, 0x0000ff)
+    .setInteractive();
+  const buttonWander = this.add
+    .rectangle(250, 50, 80, 30, 0x0000ff)
     .setInteractive();
 
   buttonArrive.on("pointerdown", () => {
@@ -296,9 +214,33 @@ function create() {
     currentBehavior = fleeBehavior; // Cambia el comportamiento a KinematicFlee
   });
 
+  buttonSeek.on("pointerdown", () => {
+    currentBehavior = seekBehavior; // Cambia el comportamiento a KinematicFlee
+  });
+
+  buttonWander.on("pointerdown", () => {
+    currentBehavior = wanderBehavior; // Cambia el comportamiento a KinematicWandering
+  });
+
+  buttonKinematicArrive.on("pointerdown", () => {
+    currentBehavior = kinematicArrive; // Cambia el comportamiento a KinematicArr
+  });
+
   // Estilo para los botones
-  this.add.text(50 - 30, 50 - 10, "Arrive", { fontSize: "16px", fill: "#000" });
-  this.add.text(150 - 20, 50 - 10, "Flee", { fontSize: "16px", fill: "#000" });
+  this.add.text(50 - 30, 50 - 10, "DArrive", {
+    fontSize: "16px",
+    fill: "#000",
+  });
+  this.add.text(150 - 20, 50 - 10, "DFlee", { fontSize: "16px", fill: "#000" });
+  this.add.text(450 - 20, 50 - 10, "DSeek", { fontSize: "16px", fill: "#000" });
+  this.add.text(250 - 30, 50 - 10, "KWander", {
+    fontSize: "16px",
+    fill: "#000",
+  });
+  this.add.text(350 - 30, 50 - 10, "KArrive", {
+    fontSize: "16px",
+    fill: "#000",
+  });
 }
 
 function update(time, delta) {
@@ -337,50 +279,94 @@ function update(time, delta) {
   // Actualiza la posición de "red" en los comportamientos
   arriveBehavior.target.position.set(this.red.x, this.red.y);
   fleeBehavior.target.position.set(this.red.x, this.red.y);
+  kinematicArrive.target.position.set(this.red.x, this.red.y);
+  seekBehavior.target.position.set(this.red.x, this.red.y);
 
-  // Calcula el steering para "green" usando el comportamiento de Arrive
+
+  // Calcula el steering para "green" usando el comportamiento actual (Arrive, Flee o Wander)
   const steeringGreen = currentBehavior.getSteering();
   if (steeringGreen) {
     kinematicGreen.update(steeringGreen, delta / 1000);
-  }
 
-  // Actualiza la posición de "green"
-  this.green.x = kinematicGreen.position.x;
-  this.green.y = kinematicGreen.position.y;
+    if (currentBehavior === wanderBehavior) {
+      // Actualiza la posición de green
+      this.green.x = kinematicGreen.position.x;
+      this.green.y = kinematicGreen.position.y;
 
-  // Calcula la dirección en la que "green" se está moviendo con respecto a "red"
-  const direction = new Phaser.Math.Vector2(
-    this.red.x - this.green.x,
-    this.red.y - this.green.y
-  ).normalize();
+      // Actualiza la orientación del sprite según la dirección de la velocidad
+      let angle = Phaser.Math.RadToDeg(kinematicGreen.orientation);
 
-  // Verifica la distancia entre "red" y "green"
-  const distance = Phaser.Math.Distance.Between(
-    this.red.x,
-    this.red.y,
-    this.green.x,
-    this.green.y
-  );
-  const stoppingDistance = 20; // Distancia para detener a "green"
-
-  if (distance > stoppingDistance) {
-    // Determina la animación de "green" según la dirección
-    if (Math.abs(direction.x) > Math.abs(direction.y)) {
-      if (direction.x > 0) {
+      // Dependiendo del ángulo, selecciona la animación adecuada
+      if (angle > -45 && angle <= 45) {
         this.green.anims.play("green-walk-right", true);
-      } else {
-        this.green.anims.play("green-walk-left", true);
-      }
-    } else {
-      if (direction.y > 0) {
+      } else if (angle > 45 && angle <= 135) {
         this.green.anims.play("green-walk-down", true);
+      } else if (angle > 135 || angle <= -135) {
+        this.green.anims.play("green-walk-left", true);
       } else {
         this.green.anims.play("green-walk-up", true);
       }
+    } else if (currentBehavior === kinematicArrive || currentBehavior === seekBehavior) {
+      // Actualiza la posición de "green"
+      this.green.x = kinematicGreen.position.x;
+      this.green.y = kinematicGreen.position.y;
+
+      // Ajusta la animación basándote en el movimiento
+      if (steeringGreen.linear.length() > 0) {
+        let angle = Phaser.Math.RadToDeg(kinematicGreen.orientation);
+        if (angle > -45 && angle <= 45) {
+          this.green.anims.play("green-walk-right", true);
+        } else if (angle > 45 && angle <= 135) {
+          this.green.anims.play("green-walk-down", true);
+        } else if (angle > 135 || angle <= -135) {
+          this.green.anims.play("green-walk-left", true);
+        } else {
+          this.green.anims.play("green-walk-up", true);
+        }
+      } else {
+        this.green.anims.stop();
+        this.green.setFrame(0); // O el último frame que desees mostrar
+      }
+    } else {
+      // Actualiza la posición de "green"
+      this.green.x = kinematicGreen.position.x;
+      this.green.y = kinematicGreen.position.y;
+
+      // Calcula la dirección en la que "green" se está moviendo con respecto a "red"
+      const direction = new Phaser.Math.Vector2(
+        this.red.x - this.green.x,
+        this.red.y - this.green.y
+      ).normalize();
+
+      // Verifica la distancia entre "red" y "green"
+      const distance = Phaser.Math.Distance.Between(
+        this.red.x,
+        this.red.y,
+        this.green.x,
+        this.green.y
+      );
+      const stoppingDistance = 20; // Distancia para detener a "green"
+
+      if (distance > stoppingDistance) {
+        // Determina la animación de "green" según la dirección
+        if (Math.abs(direction.x) > Math.abs(direction.y)) {
+          if (direction.x > 0) {
+            this.green.anims.play("green-walk-right", true);
+          } else {
+            this.green.anims.play("green-walk-left", true);
+          }
+        } else {
+          if (direction.y > 0) {
+            this.green.anims.play("green-walk-down", true);
+          } else {
+            this.green.anims.play("green-walk-up", true);
+          }
+        }
+      } else {
+        // Detiene la animación y la posición de "green" cuando alcanza a "red"
+        this.green.anims.stop();
+        this.green.setFrame(0); // O el último frame que desees mostrar
+      }
     }
-  } else {
-    // Detiene la animación y la posición de "green" cuando alcanza a "red"
-    this.green.anims.stop();
-    this.green.setFrame(0); // O el último frame que desees mostrar
   }
 }
