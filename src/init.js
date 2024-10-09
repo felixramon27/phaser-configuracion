@@ -233,17 +233,9 @@ function create() {
     .setOrigin(0.5, 0.5); // Centrar la flecha en green
   this.arrow.rotation = 0; // Empezamos sin rotación
 
-  // Crear 5 personajes green
-  // for (let i = 0; i < 5; i++) {
-  //   const greenCharacter = (this.green = this.physics.add
-  //     .sprite(100, 300, "green")
-  //     .setScale(1)
-  //     .setOrigin(0, i)); // Agrega el sprite de green; // Asume que esta función crea y devuelve un personaje green
-  //   greenCharacters.push(greenCharacter);
-  // }
-
   this.keys = this.input.keyboard.createCursorKeys();
-
+  // Inicializa la velocidad del personaje "red"
+  redVelocity = new Phaser.Math.Vector2(0, 0);
   // Inicializa el objeto Kinematic de green
   kinematicGreen = new Kinematic(
     new Phaser.Math.Vector2(this.green.x, this.green.y),
@@ -288,9 +280,12 @@ function create() {
 
   velocityMatching = new VelocityMatching(
     kinematicGreen,
-    { position: new Phaser.Math.Vector2(this.red.x, this.red.y) },
+    {
+      position: new Phaser.Math.Vector2(this.red.x, this.red.y),
+      velocity: new Phaser.Math.Vector2(this.red.x, this.red.y), // Nueva instancia de vector con los valores de redVelocity
+    },
     100,
-    200
+    200,
   );
 
   faceBehavior = new Face(kinematicGreen, {
@@ -318,8 +313,6 @@ function create() {
   // Inicializa el Wander dinámico
   dynamicWanderBehavior = new DynamicWander(kinematicGreen, 50, 1);
 
-  // Inicializa la velocidad del personaje "red"
-  redVelocity = new Phaser.Math.Vector2(0, 0);
   // Inicializa el comportamiento actual como Arrive
   currentBehavior = arriveBehavior;
 
@@ -485,7 +478,6 @@ function create() {
 }
 
 function update(time, delta) {
-
   function wrapAround(kinematic, transportToCenter = false) {
     if (transportToCenter) {
       // Si el kinematic sale de los límites, lo transportamos al centro
@@ -505,7 +497,7 @@ function update(time, delta) {
       } else if (kinematic.position.x > 1480) {
         kinematic.position.x = 0;
       }
-  
+
       if (kinematic.position.y < 0) {
         kinematic.position.y = 680;
       } else if (kinematic.position.y > 680) {
@@ -514,7 +506,7 @@ function update(time, delta) {
     }
   }
 
-  wrapAround(kinematicGreen)
+  wrapAround(kinematicGreen);
 
   if (arrowVisible) {
     // Mostrar la flecha
@@ -532,27 +524,29 @@ function update(time, delta) {
     this.green.setVisible(true);
   }
 
-  redVelocity.set(0, 0); // Reinicia la velocidad de "red"
+  let redVelocity = new Phaser.Math.Vector2(0, 0); // Vector de velocidad inicial para "red"
   let lastFrame = 0; // Variable para guardar el último frame
 
   // Control manual para "red"
+  // Control manual para "red"
   if (this.keys.up.isDown) {
-    redVelocity.y = -200;
+    redVelocity.set(0, -200); // Mueve hacia arriba
     this.red.anims.play("red-walk-up", true);
     lastFrame = 12; // Último frame de la animación hacia arriba
   } else if (this.keys.down.isDown) {
-    redVelocity.y = 200;
+    redVelocity.set(0, 200); // Mueve hacia abajo
     this.red.anims.play("red-walk-down", true);
     lastFrame = 1; // Último frame de la animación hacia abajo
   } else if (this.keys.left.isDown) {
-    redVelocity.x = -200;
+    redVelocity.set(-200, 0); // Mueve hacia la izquierda
     this.red.anims.play("red-walk-left", true);
     lastFrame = 4; // Último frame de la animación hacia la izquierda
   } else if (this.keys.right.isDown) {
-    redVelocity.x = 200;
+    redVelocity.set(200, 0); // Mueve hacia la derecha
     this.red.anims.play("red-walk-right", true);
     lastFrame = 8; // Último frame de la animación hacia la derecha
   } else {
+    redVelocity.set(0, 0); // Detenemos la velocidad
     this.red.anims.stop(); // Detenemos la animación
     // Solo establecer el último frame si se ha movido antes
     if (lastFrame > 0) {
