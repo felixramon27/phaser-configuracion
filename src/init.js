@@ -485,6 +485,37 @@ function create() {
 }
 
 function update(time, delta) {
+
+  function wrapAround(kinematic, transportToCenter = false) {
+    if (transportToCenter) {
+      // Si el kinematic sale de los límites, lo transportamos al centro
+      if (
+        kinematic.position.x < 0 ||
+        kinematic.position.x > 1480 ||
+        kinematic.position.y < 0 ||
+        kinematic.position.y > 680
+      ) {
+        kinematic.position.x = 1480 / 2;
+        kinematic.position.y = 680 / 2;
+      }
+    } else {
+      // Comportamiento de wrap around normal
+      if (kinematic.position.x < 0) {
+        kinematic.position.x = 1480;
+      } else if (kinematic.position.x > 1480) {
+        kinematic.position.x = 0;
+      }
+  
+      if (kinematic.position.y < 0) {
+        kinematic.position.y = 680;
+      } else if (kinematic.position.y > 680) {
+        kinematic.position.y = 0;
+      }
+    }
+  }
+
+  wrapAround(kinematicGreen)
+
   if (arrowVisible) {
     // Mostrar la flecha
     this.arrow.setVisible(true);
