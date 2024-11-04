@@ -80,16 +80,16 @@ function alignArrowToRed(arrow, red) {
 }
 
 const config = {
-  width: 1480,
-  height: 680,
-  backgroundColor: "#0000",
+  width: 1920,
+  height: 1280,
+  // backgroundColor: "#008000",
   parent: "container",
   type: Phaser.AUTO,
   physics: {
     default: "arcade", // Asegúrate de que este campo está presente
     arcade: {
       gravity: { y: 0 }, // Puedes cambiar la gravedad si lo necesitas
-      debug: false, // Cambia a true si quieres ver las líneas de colisión y depuración
+      debug: true, // Cambia a true si quieres ver las líneas de colisión y depuración
     },
   },
   scene: {
@@ -129,11 +129,89 @@ function preload() {
   this.load.image("arrow", "/assets/arrow.png");
   this.load.image("ice", "assets/ice.png");
   this.load.image("campo", "assets/campo.webp");
+  this.load.image("tiles", "assets/tileset.png");
+  this.load.tilemapTiledJSON("map", "assets/map.json");
 
   this.load.image("button", "assets/button.png");
 }
 
 function create() {
+  // Cargar el mapa
+  const map = this.make.tilemap({ key: "map", tileWidth: 64, tileHeight: 64 });
+
+  // Agregar tileset
+  const tileset = map.addTilesetImage("tiles1", "tiles");
+
+  // Crear la capa de mapa
+  const layer1 = map.createLayer("layer1", tileset, 0, 0);
+  const layer2 = map.createLayer("layer2", tileset, 0, 0);
+  const layer = map.createLayer("topLayer", tileset, 0, 0);
+  // Configurar la capa de mapa
+  layer.setCollisionBetween(0, 187);
+  layer.setCollisionBetween(189, 747);
+
+  // Dibujar la cuadrícula sobre el mapa
+  const graphics = this.add.graphics();
+  graphics.lineStyle(1, 0xffffff, 0.5); // Color blanco, ligeramente transparente
+
+  const tileWidth = map.tileWidth;
+  const tileHeight = map.tileHeight;
+  const mapWidth = map.widthInPixels;
+  const mapHeight = map.heightInPixels;
+
+  // Dibujar líneas verticales
+  for (let x = 0; x <= mapWidth; x += tileWidth) {
+    graphics.moveTo(x, 0);
+    graphics.lineTo(x, mapHeight);
+  }
+
+  // Dibujar líneas horizontales
+  for (let y = 0; y <= mapHeight; y += tileHeight) {
+    graphics.moveTo(0, y);
+    graphics.lineTo(mapWidth, y);
+  }
+
+  graphics.strokePath();
+
+  // Crear nodos en cada tile libre
+  const nodes = [];
+
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const tile = layer.getTileAt(x, y);
+
+      // Verificar si el tile está libre de colisiones
+      if (tile && !tile.collides) {
+        const nodeX = x * tileWidth + tileWidth / 2;
+        const nodeY = y * tileHeight + tileHeight / 2;
+
+        // Crear y agregar nodo a la lista de nodos
+        nodes.push({ x: nodeX, y: nodeY });
+
+        // Dibujar el nodo en el mapa (círculo rojo)
+        this.add.circle(nodeX, nodeY, 5, 0xff0000);
+      }
+    }
+  }
+
+  // Dibujar conexiones entre nodos adyacentes (opcional)
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const currentNode = nodes[i];
+    const nextNode = nodes[i + 1];
+
+    this.add
+      .line(
+        0,
+        0,
+        currentNode.x,
+        currentNode.y,
+        nextNode.x,
+        nextNode.y,
+        0x00ff00
+      )
+      .setLineWidth(2); // Línea verde entre nodos
+  }
+
   // Animaciones de red al caminar
   this.anims.create({
     key: "red-walk-down",
@@ -217,21 +295,30 @@ function create() {
     frames: [{ key: "green", frame: 0 }],
   });
 
-  this.add.image(0, 0, "campo").setScale(1);
-  this.add.tileSprite(0, 0, 5000, 5000, "ice");
+  // this.add.image(0, 0, "campo").setScale(1);
+  // this.add.tileSprite(0, 0, 5000, 5000, "ice");
   this.red = this.physics.add
     .sprite(700, 400, "red")
     .setScale(1)
-    .setOrigin(0, 1);
+    .setOrigin(3, 1);
+
+  // Agregar colisiones con el mapa
+  this.physics.add.collider(this.red, layer);
+
   this.green = this.physics.add
-    .sprite(100, 300, "green")
+    .sprite(100, 400, "green")
     .setScale(1)
-    .setOrigin(0, 1); // Agrega el sprite de green
-  this.arrow = this.physics.add
-    .sprite(this.green.x, this.green.y, "arrow")
-    .setScale(0.5)
-    .setOrigin(0.5, 0.5); // Centrar la flecha en green
-  this.arrow.rotation = 0; // Empezamos sin rotación
+    .setOrigin(3, 1); // Agrega el sprite de green
+
+  // Agregar colisiones con el mapa green
+  this.physics.add.collider(this.green, layer);
+  // Agregar colisiones con el personaje red
+  this.physics.add.collider(this.green, this.red);
+  // this.arrow = this.physics.add
+  //   .sprite(this.green.x, this.green.y, "arrow")
+  //   .setScale(0.5)
+  //   .setOrigin(0.5, 0.5); // Centrar la flecha en green
+  // this.arrow.rotation = 0; // Empezamos sin rotación
 
   this.keys = this.input.keyboard.createCursorKeys();
   // Inicializa la velocidad del personaje "red"
@@ -285,7 +372,7 @@ function create() {
       velocity: new Phaser.Math.Vector2(this.red.x, this.red.y), // Nueva instancia de vector con los valores de redVelocity
     },
     100,
-    200,
+    200
   );
 
   faceBehavior = new Face(kinematicGreen, {
@@ -402,7 +489,7 @@ function create() {
     // se ve la fecha
     arrowVisible = true;
     // Ocultar a green
-    this.green.setVisible(false);
+    // this.green.setVisible(false);
     // Cambiar el comportamiento actual al de Align
     currentBehavior = alignBehavior;
     // Iniciar la rotación de la flecha hacia la dirección de red
@@ -483,24 +570,24 @@ function update(time, delta) {
       // Si el kinematic sale de los límites, lo transportamos al centro
       if (
         kinematic.position.x < 0 ||
-        kinematic.position.x > 1480 ||
+        kinematic.position.x > 1920 ||
         kinematic.position.y < 0 ||
-        kinematic.position.y > 680
+        kinematic.position.y > 1280
       ) {
-        kinematic.position.x = 1480 / 2;
-        kinematic.position.y = 680 / 2;
+        kinematic.position.x = 1920 / 2;
+        kinematic.position.y = 1280 / 2;
       }
     } else {
       // Comportamiento de wrap around normal
       if (kinematic.position.x < 0) {
-        kinematic.position.x = 1480;
-      } else if (kinematic.position.x > 1480) {
+        kinematic.position.x = 1920;
+      } else if (kinematic.position.x > 1920) {
         kinematic.position.x = 0;
       }
 
       if (kinematic.position.y < 0) {
-        kinematic.position.y = 680;
-      } else if (kinematic.position.y > 680) {
+        kinematic.position.y = 1280;
+      } else if (kinematic.position.y > 1280) {
         kinematic.position.y = 0;
       }
     }
@@ -508,45 +595,51 @@ function update(time, delta) {
 
   wrapAround(kinematicGreen);
 
-  if (arrowVisible) {
-    // Mostrar la flecha
-    this.arrow.setVisible(true);
-    this.green.setVisible(false);
+  // if (arrowVisible) {
+  //   // Mostrar la flecha
+  //   this.arrow.setVisible(true);
+  //   this.green.setVisible(false);
 
-    // Actualizar la posición de la flecha para que siga a "red"
-    this.arrow.x = this.green.x;
-    this.arrow.y = this.green.y;
+  //   // Actualizar la posición de la flecha para que siga a "red"
+  //   this.arrow.x = this.green.x;
+  //   this.arrow.y = this.green.y;
 
-    // Llamar a la función de alineación para rotar la flecha hacia "red"
-    alignArrowToRed(this.arrow, this.red);
-  } else {
-    this.arrow.setVisible(false); // Mantener oculta si no es visible
-    this.green.setVisible(true);
-  }
+  //   // Llamar a la función de alineación para rotar la flecha hacia "red"
+  //   alignArrowToRed(this.arrow, this.red);
+  // } else {
+  //   this.arrow.setVisible(false); // Mantener oculta si no es visible
+  //   this.green.setVisible(true);
+  // }
 
   let redVelocity = new Phaser.Math.Vector2(0, 0); // Vector de velocidad inicial para "red"
   let lastFrame = 0; // Variable para guardar el último frame
 
   // Control manual para "red"
-  // Control manual para "red"
   if (this.keys.up.isDown) {
     redVelocity.set(0, -200); // Mueve hacia arriba
+    this.red.setVelocityY(-200);
     this.red.anims.play("red-walk-up", true);
     lastFrame = 12; // Último frame de la animación hacia arriba
   } else if (this.keys.down.isDown) {
     redVelocity.set(0, 200); // Mueve hacia abajo
+    this.red.setVelocityY(200);
     this.red.anims.play("red-walk-down", true);
     lastFrame = 1; // Último frame de la animación hacia abajo
   } else if (this.keys.left.isDown) {
-    redVelocity.set(-200, 0); // Mueve hacia la izquierda
+    redVelocity.set(-200, 0); // Mueve hacia la izquierda'
+    this.red.setVelocityX(-200);
     this.red.anims.play("red-walk-left", true);
     lastFrame = 4; // Último frame de la animación hacia la izquierda
   } else if (this.keys.right.isDown) {
     redVelocity.set(200, 0); // Mueve hacia la derecha
+    this.red.setVelocityX(200);
     this.red.anims.play("red-walk-right", true);
     lastFrame = 8; // Último frame de la animación hacia la derecha
   } else {
     redVelocity.set(0, 0); // Detenemos la velocidad
+    this.red.setVelocityX(0);
+    this.red.setVelocityY(0);
+
     this.red.anims.stop(); // Detenemos la animación
     // Solo establecer el último frame si se ha movido antes
     if (lastFrame > 0) {
