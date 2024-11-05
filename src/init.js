@@ -10,72 +10,111 @@ import { Wander } from "./classes/Wander.js";
 import { Face } from "./classes/Face.js";
 import { DynamicWander } from "./classes/DynamicWander.js";
 
-let arrowVisible = false;
-const greenCharacters = []; // Array para almacenar los personajes green
+let collisionLayer;
+let graphics;
 
-function createGreenCharacters() {
-  // Eliminar personajes green existentes antes de crear nuevos
-  greenCharacters.forEach((character) => character.destroy());
-  greenCharacters.length = 0; // Limpiar el array
+function aStar(startNode, endNode, collisionLayer) {
+  const openSet = new Set();
+  const cameFrom = new Map();
+  const gScore = new Map();
+  const fScore = new Map();
 
-  const numCharacters = 5; // Número de personajes green
-  const radius = 100; // Radio alrededor de red
+  openSet.add(startNode);
+  gScore.set(startNode, 0);
+  fScore.set(startNode, heuristic(startNode, endNode));
 
-  for (let i = 0; i < numCharacters; i++) {
-    const angle = (i / numCharacters) * (Math.PI * 2); // Distribución en círculo
-    const x = this.red.x + radius * Math.cos(angle);
-    const y = this.red.y + radius * Math.sin(angle);
+  while (openSet.size > 0) {
+    const current = getLowestFScore(openSet, fScore);
 
-    const greenCharacter = this.physics.add
-      .sprite(x, y, "green")
-      .setScale(1)
-      .setOrigin(0.5, 1); // Ajusta el origen si es necesario
+    if (current.x === endNode.x && current.y === endNode.y) {
+      return reconstructPath(cameFrom, current);
+    }
 
-    // Hacer que el personaje apunte hacia red
-    alignArrowToRed(greenCharacter, this.red);
+    openSet.delete(current);
 
-    // Agregar al array
-    greenCharacters.push(greenCharacter);
+    for (const neighbor of getNeighbors(current, collisionLayer)) {
+      const tentativeGScore = (gScore.get(current) || Infinity) + 1; // Asumiendo un coste de 1 por movimiento
+
+      if (tentativeGScore < (gScore.get(neighbor) || Infinity)) {
+        cameFrom.set(neighbor, current);
+        gScore.set(neighbor, tentativeGScore);
+        fScore.set(neighbor, tentativeGScore + heuristic(neighbor, endNode));
+
+        if (!openSet.has(neighbor)) {
+          openSet.add(neighbor);
+        }
+      }
+    }
   }
+
+  return []; // Retorna un array vacío si no se encuentra camino
 }
 
-// Función para activar el comportamiento DinamicWander
-function activateDynamicWander() {
-  greenCharacters.forEach((greenCharacter) => {
-    // Configura cada personaje green para deambular
-    const dinamicWanderBehavior = new DynamicWander(greenCharacter, 100, 1); // Ajusta los parámetros según necesites
-    greenCharacter.dinamicWander = dinamicWanderBehavior; // Almacena el comportamiento en el personaje
-  });
+function heuristic(a, b) {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); // Distancia Manhattan
 }
 
-function alignArrowToRed(arrow, red) {
-  // Obtener la dirección hacia "red"
-  const direction = new Phaser.Math.Vector2(red.x - arrow.x, red.y - arrow.y);
+function getLowestFScore(openSet, fScore) {
+  let lowest = null;
+  for (const node of openSet) {
+    if (
+      !lowest ||
+      (fScore.get(node) || Infinity) < (fScore.get(lowest) || Infinity)
+    ) {
+      lowest = node;
+    }
+  }
+  return lowest;
+}
 
-  // Normalizar la dirección
-  direction.normalize();
+function getNeighbors(node, collisionLayer) {
+  const neighbors = [];
+  const directions = [
+    { x: 1, y: 0 },
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 0, y: -1 },
+  ];
 
-  // Calcular la rotación deseada de la flecha
-  const targetRotation = direction.angle();
+  for (const direction of directions) {
+    const newX = node.x + direction.x;
+    const newY = node.y + direction.y;
 
-  // Asegúrate de que la rotación actual de la flecha esté en el rango [-π, π]
-  const currentRotation = arrow.rotation;
+    if (
+      isWithinBounds(newX, newY, collisionLayer) &&
+      collisionLayer[newY][newX].index === -1
+    ) {
+      neighbors.push({ x: newX, y: newY });
+    }
+  }
+  return neighbors;
+}
 
-  // Ajustar la diferencia de rotación
-  const rotationDifference = Phaser.Math.Angle.Normalize(
-    currentRotation - targetRotation
-  );
+function isWithinBounds(x, y, layer) {
+  return x >= 0 && x < layer[0].length && y >= 0 && y < layer.length;
+}
 
-  // Define un límite para la rotación
-  const maxRotationChange = 0.1; // Cambia esto para ajustar la velocidad de rotación
-  if (Math.abs(rotationDifference) > maxRotationChange) {
-    // Si la diferencia de rotación es mayor que el cambio máximo permitido,
-    // ajusta la rotación hacia la dirección deseada
-    arrow.rotation +=
-      rotationDifference > 0 ? maxRotationChange : -maxRotationChange;
-  } else {
-    // Si la diferencia es menor, ajusta directamente a la rotación objetivo
-    arrow.rotation = targetRotation;
+function reconstructPath(cameFrom, current) {
+  const totalPath = [current];
+  while (cameFrom.has(current)) {
+    current = cameFrom.get(current);
+    totalPath.unshift(current);
+  }
+  return totalPath;
+}
+
+function drawPath(graphics, path) {
+  graphics.lineStyle(2, 0x0000ff); // Color azul para la ruta
+  for (let i = 0; i < path.length - 1; i++) {
+    const start = path[i];
+    const end = path[i + 1];
+    const startX = start.x * tileWidth + tileWidth / 2;
+    const startY = start.y * tileHeight + tileHeight / 2;
+    const endX = end.x * tileWidth + tileWidth / 2;
+    const endY = end.y * tileHeight + tileHeight / 2;
+
+    graphics.moveTo(startX, startY);
+    graphics.lineTo(endX, endY);
   }
 }
 
@@ -113,7 +152,6 @@ let kinematicGreen,
   velocityMatching,
   faceBehavior,
   dynamicWanderBehavior; // Variables globales
-let redVelocity; // Variable para controlar el movimiento de "red"
 
 function preload() {
   this.load.spritesheet("red", "assets/red.png", {
@@ -126,13 +164,8 @@ function preload() {
     frameHeight: 64,
   });
 
-  this.load.image("arrow", "/assets/arrow.png");
-  this.load.image("ice", "assets/ice.png");
-  this.load.image("campo", "assets/campo.webp");
   this.load.image("tiles", "assets/tileset.png");
   this.load.tilemapTiledJSON("map", "assets/map.json");
-
-  this.load.image("button", "assets/button.png");
 }
 
 function create() {
@@ -151,7 +184,7 @@ function create() {
   layer.setCollisionBetween(189, 747);
 
   // Dibujar la cuadrícula sobre el mapa
-  const graphics = this.add.graphics();
+  graphics = this.add.graphics();
   graphics.lineStyle(1, 0xffffff, 0.5); // Color blanco, ligeramente transparente
 
   const tileWidth = map.tileWidth;
@@ -173,43 +206,20 @@ function create() {
 
   graphics.strokePath();
 
-  // Crear nodos en cada tile libre
-  const nodes = [];
+  collisionLayer = map.layers[2].data; // `mapData` es tu archivo `map.json`
 
+  console.log("🚀 ~ create ~ collisionLayer:", collisionLayer)
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
-      const tile = layer.getTileAt(x, y);
+      const isWalkable = collisionLayer[y][x].index === -1; // Determina si el tile es walkable
 
-      // Verificar si el tile está libre de colisiones
-      if (tile && !tile.collides) {
-        const nodeX = x * tileWidth + tileWidth / 2;
-        const nodeY = y * tileHeight + tileHeight / 2;
+      const circleColor = isWalkable ? 0x00ff00 : 0xff0000; // Verde para transitable, rojo para no transitable
+      const centerX = x * tileWidth + tileWidth / 2;
+      const centerY = y * tileHeight + tileHeight / 2;
 
-        // Crear y agregar nodo a la lista de nodos
-        nodes.push({ x: nodeX, y: nodeY });
-
-        // Dibujar el nodo en el mapa (círculo rojo)
-        this.add.circle(nodeX, nodeY, 5, 0xff0000);
-      }
+      graphics.fillStyle(circleColor, 0.5); // Ajusta la transparencia si lo deseas
+      graphics.fillCircle(centerX, centerY, tileWidth / 10); // Ajusta el tamaño del círculo si es necesario
     }
-  }
-
-  // Dibujar conexiones entre nodos adyacentes (opcional)
-  for (let i = 0; i < nodes.length - 1; i++) {
-    const currentNode = nodes[i];
-    const nextNode = nodes[i + 1];
-
-    this.add
-      .line(
-        0,
-        0,
-        currentNode.x,
-        currentNode.y,
-        nextNode.x,
-        nextNode.y,
-        0x00ff00
-      )
-      .setLineWidth(2); // Línea verde entre nodos
   }
 
   // Animaciones de red al caminar
@@ -295,12 +305,10 @@ function create() {
     frames: [{ key: "green", frame: 0 }],
   });
 
-  // this.add.image(0, 0, "campo").setScale(1);
-  // this.add.tileSprite(0, 0, 5000, 5000, "ice");
   this.red = this.physics.add
     .sprite(700, 400, "red")
     .setScale(1)
-    .setOrigin(3, 1);
+    .setOrigin(0.5, 0.5);
 
   // Agregar colisiones con el mapa
   this.physics.add.collider(this.red, layer);
@@ -308,21 +316,15 @@ function create() {
   this.green = this.physics.add
     .sprite(100, 400, "green")
     .setScale(1)
-    .setOrigin(3, 1); // Agrega el sprite de green
+    .setOrigin(0.5, 0.5); // Agrega el sprite de green
 
   // Agregar colisiones con el mapa green
   this.physics.add.collider(this.green, layer);
   // Agregar colisiones con el personaje red
   this.physics.add.collider(this.green, this.red);
-  // this.arrow = this.physics.add
-  //   .sprite(this.green.x, this.green.y, "arrow")
-  //   .setScale(0.5)
-  //   .setOrigin(0.5, 0.5); // Centrar la flecha en green
-  // this.arrow.rotation = 0; // Empezamos sin rotación
 
   this.keys = this.input.keyboard.createCursorKeys();
-  // Inicializa la velocidad del personaje "red"
-  redVelocity = new Phaser.Math.Vector2(0, 0);
+
   // Inicializa el objeto Kinematic de green
   kinematicGreen = new Kinematic(
     new Phaser.Math.Vector2(this.green.x, this.green.y),
@@ -402,241 +404,44 @@ function create() {
 
   // Inicializa el comportamiento actual como Arrive
   currentBehavior = arriveBehavior;
-
-  // Agregar botones para cambiar entre KinematicArriving y KinematicFlee
-  // const buttonArrive = this.add.sprite(50, 150, "button").setInteractive();
-  // const buttonFlee = this.add.sprite(50, 50, "button").setInteractive();
-
-  const buttonKinematicArrive = this.add
-    .rectangle(350, 50, 80, 30, 0xf00f0f)
-    .setInteractive();
-  const buttonKinematicFlee = this.add
-    .rectangle(550, 50, 80, 30, 0xf00f0f)
-    .setInteractive();
-  const buttonArrive = this.add
-    .rectangle(50, 50, 80, 30, 0x00ff00)
-    .setInteractive();
-  const buttonFlee = this.add
-    .rectangle(150, 50, 80, 30, 0xff0000)
-    .setInteractive();
-  const buttonSeek = this.add
-    .rectangle(450, 50, 80, 30, 0x0000ff)
-    .setInteractive();
-  const buttonWander = this.add
-    .rectangle(250, 50, 80, 30, 0x0000ff)
-    .setInteractive();
-  const buttonAlign = this.add
-    .rectangle(650, 50, 80, 30, 0xf00f0f)
-    .setInteractive();
-  const buttonVelocity = this.add
-    .rectangle(755, 50, 90, 30, 0xf00f0f)
-    .setInteractive();
-  const buttonFace = this.add
-    .rectangle(850, 50, 90, 30, 0xf00f)
-    .setInteractive();
-  // const buttonDynamicWander = this.add
-  //   .rectangle(1050, 50, 90, 30, 0xf00f)
-  //   .setInteractive();
-
-  buttonArrive.on("pointerdown", () => {
-    currentBehavior = arriveBehavior; // Cambia el comportamiento
-  });
-
-  buttonFlee.on("pointerdown", () => {
-    currentBehavior = fleeBehavior; // Cambia el comportamiento
-  });
-
-  buttonSeek.on("pointerdown", () => {
-    currentBehavior = seekBehavior; // Cambia el comportamiento
-  });
-
-  buttonWander.on("pointerdown", () => {
-    currentBehavior = wanderBehavior; // Cambia el comportamiento
-  });
-
-  buttonKinematicArrive.on("pointerdown", () => {
-    currentBehavior = kinematicArrive; // Cambia el comportamiento
-  });
-
-  buttonKinematicFlee.on("pointerdown", () => {
-    currentBehavior = kinematicFlee; // Cambia el comportamiento
-  });
-  buttonFace.on("pointerdown", () => {
-    createGreenCharacters.call(this); // Llama a la función para crear personajes
-    currentBehavior = faceBehavior; // Cambia el comportamiento
-    // Asegúrate de que todos los green estén siguiendo la posición de red
-    greenCharacters.forEach((greenCharacter) => {
-      // Actualiza la posición del comportamiento
-      faceBehavior.target.position.set(this.red.x, this.red.y);
-      alignArrowToRed(greenCharacter, this.red); // Alinear flecha a red
-      // Cambia el sprite según la dirección de red
-      const direction = new Phaser.Math.Vector2(
-        this.red.x - greenCharacter.x,
-        this.red.y - greenCharacter.y
-      ).normalize();
-      if (direction.y < 0) {
-        greenCharacter.anims.play("green-walk-up", true);
-      } else if (direction.y > 0) {
-        greenCharacter.anims.play("green-walk-down", true);
-      } else if (direction.x < 0) {
-        greenCharacter.anims.play("green-walk-left", true);
-      } else {
-        greenCharacter.anims.play("green-walk-right", true);
-      }
-    });
-  });
-  buttonAlign.on("pointerdown", () => {
-    // se ve la fecha
-    arrowVisible = true;
-    // Ocultar a green
-    // this.green.setVisible(false);
-    // Cambiar el comportamiento actual al de Align
-    currentBehavior = alignBehavior;
-    // Iniciar la rotación de la flecha hacia la dirección de red
-    alignArrowToRed(this.arrow, this.red);
-  });
-  buttonVelocity.on("pointerdown", () => {
-    currentBehavior = velocityMatching; // Cambia el comportamiento
-  });
-  // buttonDynamicWander.on("pointerdown", () => {
-  //   createGreenCharacters.call(this); // Llama a la función para crear personajes
-  //   currentBehavior = dynamicWanderBehavior; // Cambia el comportamiento
-  //   activateDynamicWander(); // Activa el comportamiento DinamicWander
-  // });
-
-  // Botón para reiniciar el estado
-  const buttonReset = this.add
-    .rectangle(950, 50, 80, 30, 0xffff00)
-    .setInteractive();
-  buttonReset.on("pointerdown", () => {
-    // Reinicia el estado de greenCharacters
-    greenCharacters.forEach((character) => character.destroy());
-    greenCharacters.length = 0; // Limpiar el array
-
-    // Reinicia la posición y comportamiento de red
-    this.red.setPosition(700, 400);
-    // Elimina todos los personajes green creados
-    greenCharacters.forEach((green) => green.destroy());
-    greenCharacters.length = 0;
-
-    redVelocity.set(0, 0);
-    currentBehavior = arriveBehavior; // O cualquier comportamiento que desees inicializar
-  });
-
-  // Estilo para los botones
-  this.add.text(50 - 30, 50 - 10, "DArrive", {
-    fontSize: "16px",
-    fill: "#000",
-  });
-  this.add.text(150 - 20, 50 - 10, "DFlee", { fontSize: "16px", fill: "#000" });
-  this.add.text(250 - 30, 50 - 10, "KWander", {
-    fontSize: "16px",
-    fill: "#000",
-  });
-  this.add.text(350 - 30, 50 - 10, "KArrive", {
-    fontSize: "16px",
-    fill: "#000",
-  });
-  this.add.text(450 - 20, 50 - 10, "DSeek", { fontSize: "16px", fill: "#000" });
-  this.add.text(550 - 30, 50 - 10, "KFlee", {
-    fontSize: "16px",
-    fill: "#000",
-  });
-  this.add.text(650 - 30, 50 - 10, "Align", {
-    fontSize: "16px",
-    fill: "#000",
-  });
-  this.add.text(750 - 30, 50 - 10, "Velocity", {
-    fontSize: "16px",
-    fill: "#000",
-  });
-  this.add.text(850 - 30, 50 - 10, "Face", {
-    fontSize: "16px",
-    fill: "#000",
-  });
-  this.add.text(950 - 30, 50 - 10, "Reset", {
-    fontSize: "16px",
-    fill: "#000",
-  });
-  // this.add.text(1050 - 30, 50 - 10, "DWander", {
-  //   fontSize: "16px",
-  //   fill: "#000",
-  // });
 }
 
 function update(time, delta) {
-  function wrapAround(kinematic, transportToCenter = false) {
-    if (transportToCenter) {
-      // Si el kinematic sale de los límites, lo transportamos al centro
-      if (
-        kinematic.position.x < 0 ||
-        kinematic.position.x > 1920 ||
-        kinematic.position.y < 0 ||
-        kinematic.position.y > 1280
-      ) {
-        kinematic.position.x = 1920 / 2;
-        kinematic.position.y = 1280 / 2;
-      }
-    } else {
-      // Comportamiento de wrap around normal
-      if (kinematic.position.x < 0) {
-        kinematic.position.x = 1920;
-      } else if (kinematic.position.x > 1920) {
-        kinematic.position.x = 0;
-      }
-
-      if (kinematic.position.y < 0) {
-        kinematic.position.y = 1280;
-      } else if (kinematic.position.y > 1280) {
-        kinematic.position.y = 0;
-      }
-    }
-  }
-
-  wrapAround(kinematicGreen);
-
-  // if (arrowVisible) {
-  //   // Mostrar la flecha
-  //   this.arrow.setVisible(true);
-  //   this.green.setVisible(false);
-
-  //   // Actualizar la posición de la flecha para que siga a "red"
-  //   this.arrow.x = this.green.x;
-  //   this.arrow.y = this.green.y;
-
-  //   // Llamar a la función de alineación para rotar la flecha hacia "red"
-  //   alignArrowToRed(this.arrow, this.red);
-  // } else {
-  //   this.arrow.setVisible(false); // Mantener oculta si no es visible
-  //   this.green.setVisible(true);
-  // }
-
-  let redVelocity = new Phaser.Math.Vector2(0, 0); // Vector de velocidad inicial para "red"
   let lastFrame = 0; // Variable para guardar el último frame
+
+  const greenTarget = { x: this.red.x, y: this.red.y }; // Posición de red
+  const redTarget = { x: kinematicGreen.position.x, y: kinematicGreen.position.y }; // Posición de green
+
+  const greenPath = aStar(kinematicGreen, greenTarget, collisionLayer);
+  const redPath = aStar(this.red, redTarget, collisionLayer);
+
+  // Dibuja las rutas
+  drawPath(graphics, greenPath);
+  drawPath(graphics, redPath);
 
   // Control manual para "red"
   if (this.keys.up.isDown) {
-    redVelocity.set(0, -200); // Mueve hacia arriba
+    // redVelocity.set(0, -200); // Mueve hacia arriba
     this.red.setVelocityY(-200);
     this.red.anims.play("red-walk-up", true);
     lastFrame = 12; // Último frame de la animación hacia arriba
   } else if (this.keys.down.isDown) {
-    redVelocity.set(0, 200); // Mueve hacia abajo
+    // redVelocity.set(0, 200); // Mueve hacia abajo
     this.red.setVelocityY(200);
     this.red.anims.play("red-walk-down", true);
     lastFrame = 1; // Último frame de la animación hacia abajo
   } else if (this.keys.left.isDown) {
-    redVelocity.set(-200, 0); // Mueve hacia la izquierda'
+    // redVelocity.set(-200, 0); // Mueve hacia la izquierda'
     this.red.setVelocityX(-200);
     this.red.anims.play("red-walk-left", true);
     lastFrame = 4; // Último frame de la animación hacia la izquierda
   } else if (this.keys.right.isDown) {
-    redVelocity.set(200, 0); // Mueve hacia la derecha
+    // redVelocity.set(200, 0); // Mueve hacia la derecha
     this.red.setVelocityX(200);
     this.red.anims.play("red-walk-right", true);
     lastFrame = 8; // Último frame de la animación hacia la derecha
   } else {
-    redVelocity.set(0, 0); // Detenemos la velocidad
+    // redVelocity.set(0, 0); // Detenemos la velocidad
     this.red.setVelocityX(0);
     this.red.setVelocityY(0);
 
@@ -647,10 +452,6 @@ function update(time, delta) {
     }
   }
 
-  // Mueve manualmente a "red"
-  this.red.x += (redVelocity.x * delta) / 1000;
-  this.red.y += (redVelocity.y * delta) / 1000;
-
   // Actualiza la posición de "red" en los comportamientos
   arriveBehavior.target.position.set(this.red.x, this.red.y);
   velocityMatching.target.position.set(this.red.x, this.red.y);
@@ -658,7 +459,6 @@ function update(time, delta) {
   kinematicArrive.target.position.set(this.red.x, this.red.y);
   kinematicFlee.target.position.set(this.red.x, this.red.y);
   faceBehavior.target.position.set(this.red.x, this.red.y);
-  // alignBehavior.target.position.set(this.red.x, this.red.y);
   alignBehavior.target.orientation = Phaser.Math.Angle.Between(
     0,
     0,
