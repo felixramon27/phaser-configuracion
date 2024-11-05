@@ -13,94 +13,178 @@ import { DynamicWander } from "./classes/DynamicWander.js";
 let collisionLayer;
 let graphics;
 
-function aStar(startNode, endNode, collisionLayer) {
-  const openSet = new Set();
-  const cameFrom = new Map();
-  const gScore = new Map();
-  const fScore = new Map();
+function createGraph(collisionLayer) {
+  const graph = {}; // Almacenará los nodos y sus conexiones
 
-  openSet.add(startNode);
-  gScore.set(startNode, 0);
-  fScore.set(startNode, heuristic(startNode, endNode));
+  for (let y = 0; y < collisionLayer.length; y++) {
+    for (let x = 0; x < collisionLayer[y].length; x++) {
+      const tile = collisionLayer[y][x];
+      const isWalkable = tile.index === -1; // Determina si el tile es transitable
 
-  while (openSet.size > 0) {
-    const current = getLowestFScore(openSet, fScore);
+      if (isWalkable) {
+        const key = `${x},${y}`; // Clave única para cada nodo (tile transitable)
+        graph[key] = [];
 
-    if (current.x === endNode.x && current.y === endNode.y) {
-      return reconstructPath(cameFrom, current);
-    }
+        // Agrega conexiones con tiles adyacentes
+        const neighbors = [
+          { dx: 1, dy: 0 }, // Derecha
+          { dx: -1, dy: 0 }, // Izquierda
+          { dx: 0, dy: 1 }, // Abajo
+          { dx: 0, dy: -1 }, // Arriba
+        ];
 
-    openSet.delete(current);
+        neighbors.forEach(({ dx, dy }) => {
+          const nx = x + dx;
+          const ny = y + dy;
 
-    for (const neighbor of getNeighbors(current, collisionLayer)) {
-      const tentativeGScore = (gScore.get(current) || Infinity) + 1; // Asumiendo un coste de 1 por movimiento
-
-      if (tentativeGScore < (gScore.get(neighbor) || Infinity)) {
-        cameFrom.set(neighbor, current);
-        gScore.set(neighbor, tentativeGScore);
-        fScore.set(neighbor, tentativeGScore + heuristic(neighbor, endNode));
-
-        if (!openSet.has(neighbor)) {
-          openSet.add(neighbor);
-        }
+          // Verificar si el vecino está dentro del mapa y es transitable
+          if (
+            ny >= 0 &&
+            ny < collisionLayer.length &&
+            nx >= 0 &&
+            nx < collisionLayer[ny].length &&
+            collisionLayer[ny][nx].index === -1
+          ) {
+            const neighborKey = `${nx},${ny}`;
+            graph[key].push(neighborKey);
+          }
+        });
       }
     }
   }
 
-  return []; // Retorna un array vacío si no se encuentra camino
+  return graph;
 }
 
-function heuristic(a, b) {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); // Distancia Manhattan
-}
+class PriorityQueue {
+  constructor() {
+    this.items = [];
+  }
 
-function getLowestFScore(openSet, fScore) {
-  let lowest = null;
-  for (const node of openSet) {
-    if (
-      !lowest ||
-      (fScore.get(node) || Infinity) < (fScore.get(lowest) || Infinity)
-    ) {
-      lowest = node;
+  isEmpty() {
+    return this.items.length === 0;
+  }
+
+  // Insertar un nodo en la cola
+  enqueue(item, priority) {
+    this.items.push({ item, priority });
+    this.bubbleUp(this.items.length - 1);
+  }
+
+  // Extraer el nodo con menor prioridad (menor costo)
+  dequeue() {
+    const min = this.items[0];
+    const last = this.items.pop();
+    if (!this.isEmpty()) {
+      this.items[0] = last;
+      this.bubbleDown(0);
+    }
+    return min.item;
+  }
+
+  // Ajustar hacia arriba después de una inserción
+  bubbleUp(index) {
+    while (index > 0) {
+      const parentIndex = Math.floor((index - 1) / 2);
+      if (this.items[index].priority >= this.items[parentIndex].priority) break;
+      [this.items[index], this.items[parentIndex]] = [this.items[parentIndex], this.items[index]];
+      index = parentIndex;
     }
   }
-  return lowest;
-}
 
-function getNeighbors(node, collisionLayer) {
-  const neighbors = [];
-  const directions = [
-    { x: 1, y: 0 },
-    { x: -1, y: 0 },
-    { x: 0, y: 1 },
-    { x: 0, y: -1 },
-  ];
+  // Ajustar hacia abajo después de una extracción
+  bubbleDown(index) {
+    const length = this.items.length;
+    while (true) {
+      const left = 2 * index + 1;
+      const right = 2 * index + 2;
+      let smallest = index;
 
-  for (const direction of directions) {
-    const newX = node.x + direction.x;
-    const newY = node.y + direction.y;
+      if (left < length && this.items[left].priority < this.items[smallest].priority) {
+        smallest = left;
+      }
+      if (right < length && this.items[right].priority < this.items[smallest].priority) {
+        smallest = right;
+      }
+      if (smallest === index) break;
 
-    if (
-      isWithinBounds(newX, newY, collisionLayer) &&
-      collisionLayer[newY][newX].index === -1
-    ) {
-      neighbors.push({ x: newX, y: newY });
+      [this.items[index], this.items[smallest]] = [this.items[smallest], this.items[index]];
+      index = smallest;
     }
   }
-  return neighbors;
 }
 
-function isWithinBounds(x, y, layer) {
-  return x >= 0 && x < layer[0].length && y >= 0 && y < layer.length;
-}
 
-function reconstructPath(cameFrom, current) {
-  const totalPath = [current];
-  while (cameFrom.has(current)) {
-    current = cameFrom.get(current);
-    totalPath.unshift(current);
+// Dijkstra's Pathfinding Algorithm
+function pathfindDijkstra(graph, start, goal) {
+  // Definición de NodeRecord
+  class NodeRecord {
+    constructor(node, connection, cost) {
+      this.node = node;
+      this.connection = connection;
+      this.cost = cost;
+    }
   }
-  return totalPath;
+
+  // Inicialización del registro para el nodo de inicio
+  const startRecord = new NodeRecord(start, null, 0);
+
+  // Inicialización de la cola de prioridad y la lista cerrada
+  const open = new PriorityQueue();
+  open.enqueue(startRecord, startRecord.cost);
+  const closed = new Set();
+
+  let current = null;
+
+  // Ciclo principal
+  while (!open.isEmpty()) {
+    // Extraer el nodo con el menor costo de la cola de prioridad
+    current = open.dequeue();
+
+    // Verificar si hemos llegado al nodo objetivo
+    if (current.node === goal) break;
+
+    // Obtener las conexiones (vecinos) del nodo actual
+    const connections = graph[current.node];
+
+    // Iterar sobre cada conexión
+    for (let next of connections) {
+      const endNode = next.node;
+      const endNodeCost = current.cost + next.cost;
+
+      // Saltar si el nodo ya está en la lista cerrada
+      if (closed.has(endNode)) continue;
+
+      // Verificar si el nodo está en la cola abierta y si el nuevo camino es más caro
+      const openRecord = open.items.find(record => record.item.node === endNode);
+      if (openRecord) {
+        if (openRecord.item.cost <= endNodeCost) continue;
+        openRecord.item.cost = endNodeCost;
+        openRecord.item.connection = current;
+        open.bubbleUp(open.items.indexOf(openRecord));
+      } else {
+        // Crear un nuevo registro para el nodo no visitado
+        const endNodeRecord = new NodeRecord(endNode, current, endNodeCost);
+        open.enqueue(endNodeRecord, endNodeCost);
+      }
+    }
+
+    // Añadir el nodo actual a la lista cerrada
+    closed.add(current.node);
+  }
+
+  // Si no encontramos el objetivo, no hay solución
+  if (current.node !== goal) return null;
+
+  // Generar el camino en base a las conexiones
+  const path = [];
+  while (current.node !== start) {
+    path.push(current.connection);
+    current = current.connection;
+  }
+
+  // Invertir el camino para que vaya de inicio a fin
+  return path.reverse();
 }
 
 function drawPath(graphics, path) {
@@ -208,7 +292,6 @@ function create() {
 
   collisionLayer = map.layers[2].data; // `mapData` es tu archivo `map.json`
 
-  console.log("🚀 ~ create ~ collisionLayer:", collisionLayer)
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
       const isWalkable = collisionLayer[y][x].index === -1; // Determina si el tile es walkable
@@ -221,6 +304,31 @@ function create() {
       graphics.fillCircle(centerX, centerY, tileWidth / 10); // Ajusta el tamaño del círculo si es necesario
     }
   }
+
+  const grafo = createGraph(collisionLayer);
+  console.log("🚀 ~ create ~ grafo:", grafo);
+
+  const graph = {
+    "0,0": [
+      { node: "0,1", cost: 1 },
+      { node: "1,0", cost: 1 },
+    ],
+    "0,1": [
+      { node: "0,0", cost: 1 },
+      { node: "1,1", cost: 1 },
+    ],
+    "1,0": [
+      { node: "0,0", cost: 1 },
+      { node: "1,1", cost: 1 },
+    ],
+    "1,1": [
+      { node: "0,1", cost: 1 },
+      { node: "1,0", cost: 1 },
+    ],
+  };
+
+  const path = pathfindDijkstra(graph, "0,0", "1,1");
+  console.log(path);
 
   // Animaciones de red al caminar
   this.anims.create({
@@ -408,16 +516,6 @@ function create() {
 
 function update(time, delta) {
   let lastFrame = 0; // Variable para guardar el último frame
-
-  const greenTarget = { x: this.red.x, y: this.red.y }; // Posición de red
-  const redTarget = { x: kinematicGreen.position.x, y: kinematicGreen.position.y }; // Posición de green
-
-  const greenPath = aStar(kinematicGreen, greenTarget, collisionLayer);
-  const redPath = aStar(this.red, redTarget, collisionLayer);
-
-  // Dibuja las rutas
-  drawPath(graphics, greenPath);
-  drawPath(graphics, redPath);
 
   // Control manual para "red"
   if (this.keys.up.isDown) {
