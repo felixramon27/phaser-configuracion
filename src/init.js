@@ -825,7 +825,7 @@ function update(time, delta) {
       const direction3 = new Phaser.Math.Vector2(
         this.red.x - this.blue.x,
         this.red.y - this.blue.y
-      )
+      ).normalize();
 
       // Verifica la distancia entre "red" y "green"
       const distance = Phaser.Math.Distance.Between(
