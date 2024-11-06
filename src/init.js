@@ -30,6 +30,9 @@ let tileWidth;
 let tileHeight;
 let mapWidth;
 let mapHeight;
+let graphicsArceus;
+let graphicsBlue;
+let graphicsGreen;
 
 function createGraph(collisionLayer) {
   const graph = {}; // Almacenará los nodos y sus conexiones
@@ -205,8 +208,10 @@ function pathfindDijkstra(graph, start, goal) {
   return path.reverse();
 }
 
-function drawPath(path, tileWidth, tileHeight) {
+function drawPath(graphics,path, tileWidth, tileHeight) {
   if (!path || path.length === 0) return;
+
+  graphics.clear(); // Limpia solo el gráfico pasado como parámetro
 
   graphics.lineStyle(3, 0xffff00, 1); // Configura el estilo de la línea (color amarillo y grosor de 3)
 
@@ -228,43 +233,31 @@ function drawPath(path, tileWidth, tileHeight) {
 
 class ArceusStateMachine {
   constructor(arceus, red, cave, grafo, drawPath) {
-    this.arceus = arceus; // Sprite de Arceus
-    this.red = red; // Sprite de 'red'
-    this.cave = cave; // Posición de la cueva o sprite
-    this.grafo = grafo; // Grafo de la mapa
-    this.drawPath = drawPath; // Función para dibujar el camino
-    this.state = "patrol"; // Estado inicial
-    this.detectionRadius = 100; // Radio de detección para alerta
+    this.arceus = arceus;
+    this.red = red;
+    this.cave = cave;
+    this.grafo = grafo;
+    this.drawPath = drawPath;
+    this.state = "patrol";
+    this.detectionRadius = 100;
+    
+    // Inicializar estas propiedades correctamente
+    this.pathNodes1 = []; // Lista de nodos del camino actual
+    this.pathIndexCurrent = 0; // Índice del nodo actual en el camino
   }
 
   update() {
     switch (this.state) {
       case "patrol":
         this.patrol();
-        // Si red se acerca dentro del radio de detección
-        if (
-          Phaser.Math.Distance.Between(
-            this.arceus.x,
-            this.arceus.y,
-            this.red.x,
-            this.red.y
-          ) < this.detectionRadius
-        ) {
+        if (Phaser.Math.Distance.Between(this.arceus.x, this.arceus.y, this.red.x, this.red.y) < this.detectionRadius) {
           this.changeState("alert");
         }
         break;
 
       case "alert":
         this.alert();
-        // Si red se aleja fuera del radio de detección
-        if (
-          Phaser.Math.Distance.Between(
-            this.arceus.x,
-            this.arceus.y,
-            this.red.x,
-            this.red.y
-          ) >= this.detectionRadius
-        ) {
+        if (Phaser.Math.Distance.Between(this.arceus.x, this.arceus.y, this.red.x, this.red.y) >= this.detectionRadius) {
           this.changeState("escape");
         }
         break;
@@ -277,104 +270,69 @@ class ArceusStateMachine {
 
   changeState(newState) {
     this.state = newState;
+    if (newState === "escape") {
+      this.startEscape();
+    }
   }
 
   patrol() {
-    // Lógica de patrullaje (usando el camino ya definido)
-    this.arceus.clearTint(); // Quitar color rojo si estaba en alerta
-    // Aquí puedes incluir el movimiento a los puntos de patrullaje
+    this.arceus.clearTint();
   }
 
   alert() {
-    // Calculamos el nuevo camino hacia la cueva (coordenada "4,16")
-    // let newPath = this.calculatePath("4,16");
-    // drawPath(newPath, tileWidth, tileHeight); // Actualizamos el dibujo del camino
-    // Lógica de alerta (cambiar de color a rojo)
-    this.arceus.setTint(0xff0000); // Cambiar a rojo
+    this.arceus.setTint(0xff0000);
   }
 
   escape() {
-    // Lógica para dirigirse a la cueva
-    this.arceus.clearTint(); // Restaurar color original si estaba en alerta
-    // Movimiento hacia la posición de la cueva
-    // this.scene.physics.moveTo(this.arceus, this.cave.x, this.cave.y, 100);
-    arriveBehavior2.target = { position: new Phaser.Math.Vector2(this.cave.x, this.cave.y) };
-
-    let newPath = this.calculatePath("4,16");
-    pathNodes1 = newPath?.map((node) => {
-      const [x, y] = node.node.split(",").map(Number);
-      return {
-        x: x * tileWidth + tileWidth / 2,
-        y: y * tileHeight + tileHeight / 2,
-      };
-    });
-    drawPath(newPath, tileWidth, tileHeight);
-    let pathIndexCurrent = 0;
-
-    if (pathNodes1 && pathIndexCurrent < pathNodes1.length) {
+    if (this.pathNodes1 && this.pathIndexCurrent < this.pathNodes1.length) {
       const currentTarget = {
-        position: new Phaser.Math.Vector2(
-          pathNodes1[pathIndexCurrent].x,
-          pathNodes1[pathIndexCurrent].y
-        ),
+        position: new Phaser.Math.Vector2(this.pathNodes1[this.pathIndexCurrent].x, this.pathNodes1[this.pathIndexCurrent].y),
       };
-      arriveBehavior2.target = currentTarget; // Asigna el nodo actual como el objetivo
-  
-      // Calcula la distancia entre `green` y el objetivo actual
+      arriveBehavior2.target = currentTarget;
+
       const distance = Phaser.Math.Distance.Between(
         kinematicArceus.position.x,
         kinematicArceus.position.y,
         currentTarget.position.x,
         currentTarget.position.y
       );
-  
-      // Si `green` ha llegado al objetivo, pasa al siguiente nodo
+
       if (distance < 10) {
-        // Ajusta este valor según la precisión que desees
-        pathIndexCurrent++;
-        if (pathIndexCurrent >= pathNodes1.length - 1) {
-          // `green` llegó al último nodo, detén el movimiento
+        this.pathIndexCurrent++;
+        if (this.pathIndexCurrent >= this.pathNodes1.length) {
           arriveBehavior2.target = null;
+          this.arceus.setVisible(false);
+          this.state = null; // Termina la máquina de estados
         }
       }
-    }
-
-    // Verificar si Arceus llegó a la cueva
-    if (
-      Phaser.Math.Distance.Between(
-        this.arceus.x,
-        this.arceus.y,
-        this.cave.x,
-        this.cave.y
-      ) < 50
-    ) {
-      this.arceus.setVisible(false); // Desaparecer cuando llegue
-      this.changeState(null); // Terminar la máquina de estados
     }
   }
 
   calculatePath(destination) {
-    // Convertimos las coordenadas de Arceus a coordenadas relativas del grafo
-    let startGraphCoord = pixelToGraphCoord(
-      this.arceus.x,
-      this.arceus.y,
-      tileWidth,
-      tileHeight
-    );
-
-    // Asegúrate de que el destino también esté en el formato adecuado
-    let endGraphCoord = destination; // Asumimos que 'destination' ya está en el formato correcto del grafo
-
-    // Calculamos el camino usando Dijkstra con las coordenadas relativas del grafo
+    let startGraphCoord = pixelToGraphCoord(this.arceus.x, this.arceus.y, tileWidth, tileHeight);
+    let endGraphCoord = destination;
     let path = pathfindDijkstra(grafo, startGraphCoord, endGraphCoord);
     return path;
   }
 
   startEscape() {
-    // Método para iniciar el escape hacia la cueva
-    this.changeState("escape");
+
+    pathNodes1 = [];
+
+    let newPath = this.calculatePath("4,16");
+    this.pathNodes1 = newPath?.map((node) => {
+      const [x, y] = node.node.split(",").map(Number);
+      return {
+        x: x * tileWidth + tileWidth / 2,
+        y: y * tileHeight + tileHeight / 2,
+      };
+    });
+
+    this.pathIndexCurrent = 0; // Reinicia el índice de camino
+    drawPath(graphicsArceus, newPath, tileWidth, tileHeight);
   }
 }
+
 
 function pixelToGraphCoord(x, y, tileWidth, tileHeight) {
   // Calcular la posición relativa en el grafo a partir de las coordenadas en píxeles
@@ -448,6 +406,9 @@ function create() {
 
   // Dibujar la cuadrícula sobre el mapa
   graphics = this.add.graphics();
+  graphicsArceus = this.add.graphics();
+  graphicsBlue = this.add.graphics();
+  graphicsGreen = this.add.graphics();
   graphics.lineStyle(1, 0xffffff, 0.5); // Color blanco, ligeramente transparente
 
   tileWidth = map.tileWidth;
@@ -487,13 +448,13 @@ function create() {
   grafo = createGraph(collisionLayer);
   console.log("🚀 ~ create ~ grafo:", grafo);
 
-  path = pathfindDijkstra(grafo, "1,6", "4,16");
+  path = pathfindDijkstra(grafo, "1,6", "20,16");
   path1 = pathfindDijkstra(grafo, "1,1", "11,15"); // Para kinematicArceus
   path2 = pathfindDijkstra(grafo, "18,1", "22,18"); // Para kinematicBlue
 
-  drawPath(path, map.tileWidth, map.tileHeight);
-  drawPath(path1, map.tileWidth, map.tileHeight);
-  drawPath(path2, map.tileWidth, map.tileHeight);
+  drawPath(graphicsGreen,path, map.tileWidth, map.tileHeight);
+  drawPath(graphicsArceus,path1, map.tileWidth, map.tileHeight);
+  drawPath(graphicsBlue,path2, map.tileWidth, map.tileHeight);
 
   // Animaciones de red al caminar
   this.anims.create({
