@@ -26,6 +26,10 @@ let grafo; // Grafo de la mapa
 let path; // Ruta encontrada
 let path1; // Ruta encontrada
 let path2; // Ruta encontrada
+let tileWidth;
+let tileHeight;
+let mapWidth;
+let mapHeight;
 
 function createGraph(collisionLayer) {
   const graph = {}; // Almacenará los nodos y sus conexiones
@@ -222,6 +226,164 @@ function drawPath(path, tileWidth, tileHeight) {
   graphics.strokePath(); // Dibuja la ruta en el mapa
 }
 
+class ArceusStateMachine {
+  constructor(arceus, red, cave, grafo, drawPath) {
+    this.arceus = arceus; // Sprite de Arceus
+    this.red = red; // Sprite de 'red'
+    this.cave = cave; // Posición de la cueva o sprite
+    this.grafo = grafo; // Grafo de la mapa
+    this.drawPath = drawPath; // Función para dibujar el camino
+    this.state = "patrol"; // Estado inicial
+    this.detectionRadius = 100; // Radio de detección para alerta
+  }
+
+  update() {
+    switch (this.state) {
+      case "patrol":
+        this.patrol();
+        // Si red se acerca dentro del radio de detección
+        if (
+          Phaser.Math.Distance.Between(
+            this.arceus.x,
+            this.arceus.y,
+            this.red.x,
+            this.red.y
+          ) < this.detectionRadius
+        ) {
+          this.changeState("alert");
+        }
+        break;
+
+      case "alert":
+        this.alert();
+        // Si red se aleja fuera del radio de detección
+        if (
+          Phaser.Math.Distance.Between(
+            this.arceus.x,
+            this.arceus.y,
+            this.red.x,
+            this.red.y
+          ) >= this.detectionRadius
+        ) {
+          this.changeState("escape");
+        }
+        break;
+
+      case "escape":
+        this.escape();
+        break;
+    }
+  }
+
+  changeState(newState) {
+    this.state = newState;
+  }
+
+  patrol() {
+    // Lógica de patrullaje (usando el camino ya definido)
+    this.arceus.clearTint(); // Quitar color rojo si estaba en alerta
+    // Aquí puedes incluir el movimiento a los puntos de patrullaje
+  }
+
+  alert() {
+    // Calculamos el nuevo camino hacia la cueva (coordenada "4,16")
+    // let newPath = this.calculatePath("4,16");
+    // drawPath(newPath, tileWidth, tileHeight); // Actualizamos el dibujo del camino
+    // Lógica de alerta (cambiar de color a rojo)
+    this.arceus.setTint(0xff0000); // Cambiar a rojo
+  }
+
+  escape() {
+    // Lógica para dirigirse a la cueva
+    this.arceus.clearTint(); // Restaurar color original si estaba en alerta
+    // Movimiento hacia la posición de la cueva
+    // this.scene.physics.moveTo(this.arceus, this.cave.x, this.cave.y, 100);
+    arriveBehavior2.target = { position: new Phaser.Math.Vector2(this.cave.x, this.cave.y) };
+
+    let newPath = this.calculatePath("4,16");
+    pathNodes1 = newPath?.map((node) => {
+      const [x, y] = node.node.split(",").map(Number);
+      return {
+        x: x * tileWidth + tileWidth / 2,
+        y: y * tileHeight + tileHeight / 2,
+      };
+    });
+    drawPath(newPath, tileWidth, tileHeight);
+    let pathIndexCurrent = 0;
+
+    if (pathNodes1 && pathIndexCurrent < pathNodes1.length) {
+      const currentTarget = {
+        position: new Phaser.Math.Vector2(
+          pathNodes1[pathIndexCurrent].x,
+          pathNodes1[pathIndexCurrent].y
+        ),
+      };
+      arriveBehavior2.target = currentTarget; // Asigna el nodo actual como el objetivo
+  
+      // Calcula la distancia entre `green` y el objetivo actual
+      const distance = Phaser.Math.Distance.Between(
+        kinematicArceus.position.x,
+        kinematicArceus.position.y,
+        currentTarget.position.x,
+        currentTarget.position.y
+      );
+  
+      // Si `green` ha llegado al objetivo, pasa al siguiente nodo
+      if (distance < 10) {
+        // Ajusta este valor según la precisión que desees
+        pathIndexCurrent++;
+        if (pathIndexCurrent >= pathNodes1.length - 1) {
+          // `green` llegó al último nodo, detén el movimiento
+          arriveBehavior2.target = null;
+        }
+      }
+    }
+
+    // Verificar si Arceus llegó a la cueva
+    if (
+      Phaser.Math.Distance.Between(
+        this.arceus.x,
+        this.arceus.y,
+        this.cave.x,
+        this.cave.y
+      ) < 50
+    ) {
+      this.arceus.setVisible(false); // Desaparecer cuando llegue
+      this.changeState(null); // Terminar la máquina de estados
+    }
+  }
+
+  calculatePath(destination) {
+    // Convertimos las coordenadas de Arceus a coordenadas relativas del grafo
+    let startGraphCoord = pixelToGraphCoord(
+      this.arceus.x,
+      this.arceus.y,
+      tileWidth,
+      tileHeight
+    );
+
+    // Asegúrate de que el destino también esté en el formato adecuado
+    let endGraphCoord = destination; // Asumimos que 'destination' ya está en el formato correcto del grafo
+
+    // Calculamos el camino usando Dijkstra con las coordenadas relativas del grafo
+    let path = pathfindDijkstra(grafo, startGraphCoord, endGraphCoord);
+    return path;
+  }
+
+  startEscape() {
+    // Método para iniciar el escape hacia la cueva
+    this.changeState("escape");
+  }
+}
+
+function pixelToGraphCoord(x, y, tileWidth, tileHeight) {
+  // Calcular la posición relativa en el grafo a partir de las coordenadas en píxeles
+  let graphX = Math.floor(x / tileWidth);
+  let graphY = Math.floor(y / tileHeight);
+
+  return `${graphX},${graphY}`;
+}
+
 const config = {
   width: 1920,
   height: 1280,
@@ -288,10 +450,10 @@ function create() {
   graphics = this.add.graphics();
   graphics.lineStyle(1, 0xffffff, 0.5); // Color blanco, ligeramente transparente
 
-  const tileWidth = map.tileWidth;
-  const tileHeight = map.tileHeight;
-  const mapWidth = map.widthInPixels;
-  const mapHeight = map.heightInPixels;
+  tileWidth = map.tileWidth;
+  tileHeight = map.tileHeight;
+  mapWidth = map.widthInPixels;
+  mapHeight = map.heightInPixels;
 
   // Dibujar líneas verticales
   for (let x = 0; x <= mapWidth; x += tileWidth) {
@@ -516,6 +678,14 @@ function create() {
     .setScale(1)
     .setOrigin(0.5, 0.5); // Agrega el sprite de green
 
+  this.cave = { x: 224, y: 1056 }; // Posición de la cueva
+
+  this.arceusStateMachine = new ArceusStateMachine(
+    this.arceus,
+    this.red,
+    this.cave
+  );
+
   this.blue = this.physics.add
     .sprite(1200, 100, "blue")
     .setScale(1) // Agrega el sprite de green
@@ -555,10 +725,6 @@ function create() {
       y: y * tileHeight + tileHeight / 2,
     };
   });
-
-  console.log("🚀 ~ pathNodes ~ pathNodes:", pathNodes, pathNodes[pathIndex]);
-  console.log("🚀 ~ pathNodes1 ~ pathNodes1:", pathNodes1, pathNodes1[pathIndex1]);
-  console.log("🚀 ~ pathNodes2 ~ pathNodes2:", pathNodes2, pathNodes2[pathIndex2]);
 
   // Inicializa el objeto Kinematic de green
   kinematicGreen = new Kinematic(
@@ -649,6 +815,8 @@ function create() {
 function update(time, delta) {
   let lastFrame = 0; // Variable para guardar el último frame
 
+  this.arceusStateMachine.update(); // Actualiza el estado del Arceus
+
   // Control manual para "red"
   if (this.keys.up.isDown) {
     // redVelocity.set(0, -200); // Mueve hacia arriba
@@ -685,6 +853,12 @@ function update(time, delta) {
   // Actualiza la posición de "red" en los comportamientos
   // arriveBehavior.target.position.set(this.red.x, this.red.y);
   if (pathNodes && pathIndex < pathNodes.length) {
+    console.log(
+      "🚀 ~ update ~ pathNodes.length:",
+      pathNodes.length,
+      pathIndex,
+      pathNodes[pathIndex]
+    );
     const currentTarget = {
       position: new Phaser.Math.Vector2(
         pathNodes[pathIndex].x,
@@ -705,7 +879,7 @@ function update(time, delta) {
     if (distance < 10) {
       // Ajusta este valor según la precisión que desees
       pathIndex++;
-      if (pathIndex >= pathNodes.length -1) {
+      if (pathIndex >= pathNodes.length - 1) {
         // `green` llegó al último nodo, detén el movimiento
         arriveBehavior.target = null;
       }
@@ -713,7 +887,6 @@ function update(time, delta) {
   }
 
   if (pathNodes1 && pathIndex1 < pathNodes1.length) {
-    console.log("🚀 ~ update ~  pathNodes1.length:",  pathNodes1.length, pathIndex1, pathNodes1[pathIndex1]);
     const currentTarget = {
       position: new Phaser.Math.Vector2(
         pathNodes1[pathIndex1].x,
@@ -762,7 +935,7 @@ function update(time, delta) {
     if (distance < 10) {
       // Ajusta este valor según la precisión que desees
       pathIndex2++;
-      if (pathIndex2 >= pathNodes2.length -1) {
+      if (pathIndex2 >= pathNodes2.length - 1) {
         // `green` llegó al último nodo, detén el movimiento
         arriveBehavior3.target = null;
       }
