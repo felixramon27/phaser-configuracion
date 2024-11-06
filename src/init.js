@@ -1,17 +1,31 @@
 import { Kinematic } from "./classes/Kinematic.js";
 import { Arrive } from "./classes/Arrive.js";
-import { VelocityMatching } from "./classes/VelocityMatching.js";
-import { KinematicArrive } from "./classes/KinematicArrive.js";
-import { KinematicFlee } from "./classes/KinematicFlee.js";
-import { Align } from "./classes/Align.js";
 import { Flee } from "./classes/Flee.js";
 import { Seek } from "./classes/Seek.js";
-import { Wander } from "./classes/Wander.js";
-import { Face } from "./classes/Face.js";
-import { DynamicWander } from "./classes/DynamicWander.js";
 
 let collisionLayer;
 let graphics;
+let kinematicGreen, arriveBehavior, fleeBehavior, currentBehavior, seekBehavior; // Variables globales
+let kinematicArceus,
+  arriveBehavior2,
+  fleeBehavior2,
+  currentBehavior2,
+  seekBehavior2; // Variables globales
+let kinematicBlue,
+  arriveBehavior3,
+  fleeBehavior3,
+  currentBehavior3,
+  seekBehavior3; // Variables globales
+let pathIndex = 0; // Índice actual en el camino
+let pathIndex1 = 0; // Índice actual en el camino
+let pathIndex2 = 0; // Índice actual en el camino
+let pathNodes = []; // Nodos del camino
+let pathNodes1 = []; // Nodos del camino
+let pathNodes2 = []; // Nodos del camino
+let grafo; // Grafo de la mapa
+let path; // Ruta encontrada
+let path1; // Ruta encontrada
+let path2; // Ruta encontrada
 
 function createGraph(collisionLayer) {
   const graph = {}; // Almacenará los nodos y sus conexiones
@@ -46,7 +60,7 @@ function createGraph(collisionLayer) {
             collisionLayer[ny][nx].index === -1
           ) {
             const neighborKey = `${nx},${ny}`;
-            graph[key].push(neighborKey);
+            graph[key].push({ node: neighborKey, cost: 1 });
           }
         });
       }
@@ -87,7 +101,10 @@ class PriorityQueue {
     while (index > 0) {
       const parentIndex = Math.floor((index - 1) / 2);
       if (this.items[index].priority >= this.items[parentIndex].priority) break;
-      [this.items[index], this.items[parentIndex]] = [this.items[parentIndex], this.items[index]];
+      [this.items[index], this.items[parentIndex]] = [
+        this.items[parentIndex],
+        this.items[index],
+      ];
       index = parentIndex;
     }
   }
@@ -100,24 +117,31 @@ class PriorityQueue {
       const right = 2 * index + 2;
       let smallest = index;
 
-      if (left < length && this.items[left].priority < this.items[smallest].priority) {
+      if (
+        left < length &&
+        this.items[left].priority < this.items[smallest].priority
+      ) {
         smallest = left;
       }
-      if (right < length && this.items[right].priority < this.items[smallest].priority) {
+      if (
+        right < length &&
+        this.items[right].priority < this.items[smallest].priority
+      ) {
         smallest = right;
       }
       if (smallest === index) break;
 
-      [this.items[index], this.items[smallest]] = [this.items[smallest], this.items[index]];
+      [this.items[index], this.items[smallest]] = [
+        this.items[smallest],
+        this.items[index],
+      ];
       index = smallest;
     }
   }
 }
 
-
 // Dijkstra's Pathfinding Algorithm
 function pathfindDijkstra(graph, start, goal) {
-  // Definición de NodeRecord
   class NodeRecord {
     constructor(node, connection, cost) {
       this.node = node;
@@ -126,80 +150,76 @@ function pathfindDijkstra(graph, start, goal) {
     }
   }
 
-  // Inicialización del registro para el nodo de inicio
   const startRecord = new NodeRecord(start, null, 0);
-
-  // Inicialización de la cola de prioridad y la lista cerrada
   const open = new PriorityQueue();
   open.enqueue(startRecord, startRecord.cost);
   const closed = new Set();
 
   let current = null;
 
-  // Ciclo principal
   while (!open.isEmpty()) {
-    // Extraer el nodo con el menor costo de la cola de prioridad
     current = open.dequeue();
 
-    // Verificar si hemos llegado al nodo objetivo
     if (current.node === goal) break;
 
-    // Obtener las conexiones (vecinos) del nodo actual
     const connections = graph[current.node];
 
-    // Iterar sobre cada conexión
+    // Asegurarse de que `connections` es un array antes de intentar iterar
+    if (!Array.isArray(connections)) continue;
+
     for (let next of connections) {
       const endNode = next.node;
       const endNodeCost = current.cost + next.cost;
 
-      // Saltar si el nodo ya está en la lista cerrada
       if (closed.has(endNode)) continue;
 
-      // Verificar si el nodo está en la cola abierta y si el nuevo camino es más caro
-      const openRecord = open.items.find(record => record.item.node === endNode);
+      const openRecord = open.items.find(
+        (record) => record.item.node === endNode
+      );
       if (openRecord) {
         if (openRecord.item.cost <= endNodeCost) continue;
         openRecord.item.cost = endNodeCost;
         openRecord.item.connection = current;
         open.bubbleUp(open.items.indexOf(openRecord));
       } else {
-        // Crear un nuevo registro para el nodo no visitado
         const endNodeRecord = new NodeRecord(endNode, current, endNodeCost);
         open.enqueue(endNodeRecord, endNodeCost);
       }
     }
 
-    // Añadir el nodo actual a la lista cerrada
     closed.add(current.node);
   }
 
-  // Si no encontramos el objetivo, no hay solución
   if (current.node !== goal) return null;
 
-  // Generar el camino en base a las conexiones
   const path = [];
   while (current.node !== start) {
     path.push(current.connection);
     current = current.connection;
   }
 
-  // Invertir el camino para que vaya de inicio a fin
   return path.reverse();
 }
 
-function drawPath(graphics, path) {
-  graphics.lineStyle(2, 0x0000ff); // Color azul para la ruta
+function drawPath(path, tileWidth, tileHeight) {
+  if (!path || path.length === 0) return;
+
+  graphics.lineStyle(3, 0xffff00, 1); // Configura el estilo de la línea (color amarillo y grosor de 3)
+
   for (let i = 0; i < path.length - 1; i++) {
-    const start = path[i];
-    const end = path[i + 1];
-    const startX = start.x * tileWidth + tileWidth / 2;
-    const startY = start.y * tileHeight + tileHeight / 2;
-    const endX = end.x * tileWidth + tileWidth / 2;
-    const endY = end.y * tileHeight + tileHeight / 2;
+    const [x1, y1] = path[i].node.split(",").map(Number);
+    const [x2, y2] = path[i + 1].node.split(",").map(Number);
+
+    const startX = x1 * tileWidth + tileWidth / 2;
+    const startY = y1 * tileHeight + tileHeight / 2;
+    const endX = x2 * tileWidth + tileWidth / 2;
+    const endY = y2 * tileHeight + tileHeight / 2;
 
     graphics.moveTo(startX, startY);
     graphics.lineTo(endX, endY);
   }
+
+  graphics.strokePath(); // Dibuja la ruta en el mapa
 }
 
 const config = {
@@ -224,19 +244,6 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-let kinematicGreen,
-  arriveBehavior,
-  fleeBehavior,
-  currentBehavior,
-  wanderBehavior,
-  kinematicArrive,
-  seekBehavior,
-  kinematicFlee,
-  alignBehavior,
-  velocityMatching,
-  faceBehavior,
-  dynamicWanderBehavior; // Variables globales
-
 function preload() {
   this.load.spritesheet("red", "assets/red.png", {
     frameWidth: 64,
@@ -245,6 +252,16 @@ function preload() {
 
   this.load.spritesheet("green", "assets/green.png", {
     frameWidth: 48,
+    frameHeight: 64,
+  });
+
+  this.load.spritesheet("arceus", "assets/arceus.png", {
+    frameWidth: 64,
+    frameHeight: 64,
+  });
+
+  this.load.spritesheet("blue", "assets/blue.png", {
+    frameWidth: 64,
     frameHeight: 64,
   });
 
@@ -305,30 +322,16 @@ function create() {
     }
   }
 
-  const grafo = createGraph(collisionLayer);
+  grafo = createGraph(collisionLayer);
   console.log("🚀 ~ create ~ grafo:", grafo);
 
-  const graph = {
-    "0,0": [
-      { node: "0,1", cost: 1 },
-      { node: "1,0", cost: 1 },
-    ],
-    "0,1": [
-      { node: "0,0", cost: 1 },
-      { node: "1,1", cost: 1 },
-    ],
-    "1,0": [
-      { node: "0,0", cost: 1 },
-      { node: "1,1", cost: 1 },
-    ],
-    "1,1": [
-      { node: "0,1", cost: 1 },
-      { node: "1,0", cost: 1 },
-    ],
-  };
+  path = pathfindDijkstra(grafo, "1,6", "4,16");
+  path1 = pathfindDijkstra(grafo, "1,1", "11,15"); // Para kinematicArceus
+  path2 = pathfindDijkstra(grafo, "18,1", "22,18"); // Para kinematicBlue
 
-  const path = pathfindDijkstra(graph, "0,0", "1,1");
-  console.log(path);
+  drawPath(path, map.tileWidth, map.tileHeight);
+  drawPath(path1, map.tileWidth, map.tileHeight);
+  drawPath(path2, map.tileWidth, map.tileHeight);
 
   // Animaciones de red al caminar
   this.anims.create({
@@ -413,8 +416,90 @@ function create() {
     frames: [{ key: "green", frame: 0 }],
   });
 
+  this.anims.create({
+    key: "arceus-walk-down",
+    frames: this.anims.generateFrameNumbers("arceus", {
+      start: 1,
+      end: 3,
+    }),
+    frameRate: 10,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: "arceus-walk-up",
+    frames: this.anims.generateFrameNumbers("arceus", {
+      start: 12,
+      end: 15,
+    }),
+    frameRate: 10,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: "arceus-walk-right",
+    frames: this.anims.generateFrameNumbers("arceus", {
+      start: 8,
+      end: 11,
+    }),
+    frameRate: 10,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: "arceus-walk-left",
+    frames: this.anims.generateFrameNumbers("arceus", {
+      start: 4,
+      end: 7,
+    }),
+    frameRate: 10,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: "arceus-idle",
+    frames: [{ key: "arceus", frame: 0 }],
+  });
+
+  this.anims.create({
+    key: "blue-walk-down",
+    frames: this.anims.generateFrameNumbers("blue", {
+      start: 1,
+      end: 3,
+    }),
+    frameRate: 10,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: "blue-walk-up",
+    frames: this.anims.generateFrameNumbers("blue", {
+      start: 12,
+      end: 15,
+    }),
+    frameRate: 10,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: "blue-walk-right",
+    frames: this.anims.generateFrameNumbers("blue", {
+      start: 8,
+      end: 11,
+    }),
+    frameRate: 10,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: "blue-walk-left",
+    frames: this.anims.generateFrameNumbers("blue", {
+      start: 4,
+      end: 7,
+    }),
+    frameRate: 10,
+    repeat: -1,
+  });
+  this.anims.create({
+    key: "blue-idle",
+    frames: [{ key: "blue", frame: 0 }],
+  });
+
   this.red = this.physics.add
-    .sprite(700, 400, "red")
+    .sprite(800, 400, "red")
     .setScale(1)
     .setOrigin(0.5, 0.5);
 
@@ -426,12 +511,54 @@ function create() {
     .setScale(1)
     .setOrigin(0.5, 0.5); // Agrega el sprite de green
 
+  this.arceus = this.physics.add
+    .sprite(100, 100, "arceus")
+    .setScale(1)
+    .setOrigin(0.5, 0.5); // Agrega el sprite de green
+
+  this.blue = this.physics.add
+    .sprite(1200, 100, "blue")
+    .setScale(1) // Agrega el sprite de green
+    .setOrigin(0.5, 0.5);
+
   // Agregar colisiones con el mapa green
   this.physics.add.collider(this.green, layer);
+  this.physics.add.collider(this.arceus, layer);
+  this.physics.add.collider(this.blue, layer);
   // Agregar colisiones con el personaje red
   this.physics.add.collider(this.green, this.red);
+  this.physics.add.collider(this.arceus, this.red);
+  this.physics.add.collider(this.blue, this.red);
 
   this.keys = this.input.keyboard.createCursorKeys();
+
+  pathNodes = path.map((node) => {
+    const [x, y] = node.node.split(",").map(Number);
+    return {
+      x: x * tileWidth + tileWidth / 2,
+      y: y * tileHeight + tileHeight / 2,
+    };
+  });
+
+  pathNodes1 = path1.map((node) => {
+    const [x, y] = node.node.split(",").map(Number);
+    return {
+      x: x * tileWidth + tileWidth / 2,
+      y: y * tileHeight + tileHeight / 2,
+    };
+  });
+
+  pathNodes2 = path2.map((node) => {
+    const [x, y] = node.node.split(",").map(Number);
+    return {
+      x: x * tileWidth + tileWidth / 2,
+      y: y * tileHeight + tileHeight / 2,
+    };
+  });
+
+  console.log("🚀 ~ pathNodes ~ pathNodes:", pathNodes, pathNodes[pathIndex]);
+  console.log("🚀 ~ pathNodes1 ~ pathNodes1:", pathNodes1, pathNodes1[pathIndex1]);
+  console.log("🚀 ~ pathNodes2 ~ pathNodes2:", pathNodes2, pathNodes2[pathIndex2]);
 
   // Inicializa el objeto Kinematic de green
   kinematicGreen = new Kinematic(
@@ -441,53 +568,62 @@ function create() {
     0
   );
 
-  kinematicArrive = new KinematicArrive(
-    kinematicGreen,
-    { position: new Phaser.Math.Vector2(this.red.x, this.red.y) },
-    200, // maxSpeed
-    50, // Radio objetivo
-    100 // Radio de desaceleración
+  kinematicArceus = new Kinematic(
+    new Phaser.Math.Vector2(this.arceus.x, this.arceus.y),
+    new Phaser.Math.Vector2(0, 0),
+    0,
+    0
   );
 
-  kinematicFlee = new KinematicFlee(
-    kinematicGreen,
-    { position: new Phaser.Math.Vector2(this.red.x, this.red.y) },
-    200 // maxSpeed
-  );
-
-  alignBehavior = new Align(
-    kinematicGreen,
-    { position: new Phaser.Math.Vector2(this.red.x, this.red.y) },
-    0.05,
-    Math.PI,
-    0.01,
-    Math.PI / 4,
-    0.1
+  kinematicBlue = new Kinematic(
+    new Phaser.Math.Vector2(this.blue.x, this.blue.y),
+    new Phaser.Math.Vector2(0, 0),
+    0,
+    0
   );
 
   // Inicializa el comportamiento de Arrive para green siguiendo a red
   arriveBehavior = new Arrive(
     kinematicGreen,
-    { position: new Phaser.Math.Vector2(this.red.x, this.red.y) },
+    {
+      position: new Phaser.Math.Vector2(
+        pathNodes[pathIndex].x,
+        pathNodes[pathIndex].y
+      ),
+    },
     100,
     200,
     10,
     100
   );
 
-  velocityMatching = new VelocityMatching(
-    kinematicGreen,
+  arriveBehavior2 = new Arrive(
+    kinematicArceus,
     {
-      position: new Phaser.Math.Vector2(this.red.x, this.red.y),
-      velocity: new Phaser.Math.Vector2(this.red.x, this.red.y), // Nueva instancia de vector con los valores de redVelocity
+      position: new Phaser.Math.Vector2(
+        pathNodes1[pathIndex1].x,
+        pathNodes1[pathIndex1].y
+      ),
     },
     100,
-    200
+    200,
+    10,
+    100
   );
 
-  faceBehavior = new Face(kinematicGreen, {
-    position: new Phaser.Math.Vector2(this.red.x, this.red.y),
-  });
+  arriveBehavior3 = new Arrive(
+    kinematicBlue,
+    {
+      position: new Phaser.Math.Vector2(
+        pathNodes2[pathIndex2].x,
+        pathNodes2[pathIndex2].y
+      ),
+    },
+    100,
+    200,
+    10,
+    100
+  );
 
   // Inicializa los comportamientos
   fleeBehavior = new Flee(
@@ -504,14 +640,10 @@ function create() {
     200 // maxAcceleration
   );
 
-  // Inicializa el Wander para movimientos erráticos
-  wanderBehavior = new Wander(kinematicGreen, 50, 1); // 1 radian como rotación máxima
-
-  // Inicializa el Wander dinámico
-  dynamicWanderBehavior = new DynamicWander(kinematicGreen, 50, 1);
-
   // Inicializa el comportamiento actual como Arrive
   currentBehavior = arriveBehavior;
+  currentBehavior2 = arriveBehavior2;
+  currentBehavior3 = arriveBehavior3;
 }
 
 function update(time, delta) {
@@ -551,74 +683,105 @@ function update(time, delta) {
   }
 
   // Actualiza la posición de "red" en los comportamientos
-  arriveBehavior.target.position.set(this.red.x, this.red.y);
-  velocityMatching.target.position.set(this.red.x, this.red.y);
+  // arriveBehavior.target.position.set(this.red.x, this.red.y);
+  if (pathNodes && pathIndex < pathNodes.length) {
+    const currentTarget = {
+      position: new Phaser.Math.Vector2(
+        pathNodes[pathIndex].x,
+        pathNodes[pathIndex].y
+      ),
+    };
+    arriveBehavior.target = currentTarget; // Asigna el nodo actual como el objetivo
+
+    // Calcula la distancia entre `green` y el objetivo actual
+    const distance = Phaser.Math.Distance.Between(
+      kinematicGreen.position.x,
+      kinematicGreen.position.y,
+      currentTarget.position.x,
+      currentTarget.position.y
+    );
+
+    // Si `green` ha llegado al objetivo, pasa al siguiente nodo
+    if (distance < 10) {
+      // Ajusta este valor según la precisión que desees
+      pathIndex++;
+      if (pathIndex >= pathNodes.length -1) {
+        // `green` llegó al último nodo, detén el movimiento
+        arriveBehavior.target = null;
+      }
+    }
+  }
+
+  if (pathNodes1 && pathIndex1 < pathNodes1.length) {
+    console.log("🚀 ~ update ~  pathNodes1.length:",  pathNodes1.length, pathIndex1, pathNodes1[pathIndex1]);
+    const currentTarget = {
+      position: new Phaser.Math.Vector2(
+        pathNodes1[pathIndex1].x,
+        pathNodes1[pathIndex1].y
+      ),
+    };
+    arriveBehavior2.target = currentTarget; // Asigna el nodo actual como el objetivo
+
+    // Calcula la distancia entre `green` y el objetivo actual
+    const distance = Phaser.Math.Distance.Between(
+      kinematicArceus.position.x,
+      kinematicArceus.position.y,
+      currentTarget.position.x,
+      currentTarget.position.y
+    );
+
+    // Si `green` ha llegado al objetivo, pasa al siguiente nodo
+    if (distance < 10) {
+      // Ajusta este valor según la precisión que desees
+      pathIndex1++;
+      if (pathIndex1 >= pathNodes1.length - 1) {
+        // `green` llegó al último nodo, detén el movimiento
+        arriveBehavior2.target = null;
+      }
+    }
+  }
+
+  if (pathNodes2 && pathIndex2 < pathNodes2.length) {
+    const currentTarget = {
+      position: new Phaser.Math.Vector2(
+        pathNodes2[pathIndex2].x,
+        pathNodes2[pathIndex2].y
+      ),
+    };
+    arriveBehavior3.target = currentTarget; // Asigna el nodo actual como el objetivo
+
+    // Calcula la distancia entre `green` y el objetivo actual
+    const distance = Phaser.Math.Distance.Between(
+      kinematicBlue.position.x,
+      kinematicBlue.position.y,
+      currentTarget.position.x,
+      currentTarget.position.y
+    );
+
+    // Si `green` ha llegado al objetivo, pasa al siguiente nodo
+    if (distance < 10) {
+      // Ajusta este valor según la precisión que desees
+      pathIndex2++;
+      if (pathIndex2 >= pathNodes2.length -1) {
+        // `green` llegó al último nodo, detén el movimiento
+        arriveBehavior3.target = null;
+      }
+    }
+  }
+
   fleeBehavior.target.position.set(this.red.x, this.red.y);
-  kinematicArrive.target.position.set(this.red.x, this.red.y);
-  kinematicFlee.target.position.set(this.red.x, this.red.y);
-  faceBehavior.target.position.set(this.red.x, this.red.y);
-  alignBehavior.target.orientation = Phaser.Math.Angle.Between(
-    0,
-    0,
-    this.red.x,
-    this.red.y
-  );
   seekBehavior.target.position.set(this.red.x, this.red.y);
 
   // Calcula el steering para "green" usando el comportamiento actual (Arrive, Flee o Wander)
   const steeringGreen = currentBehavior.getSteering();
+  const steeringArceus = currentBehavior2.getSteering();
+  const steeringBlue = currentBehavior3.getSteering();
   if (steeringGreen) {
     kinematicGreen.update(steeringGreen, delta / 1000);
+    kinematicArceus.update(steeringArceus, delta / 1000);
+    kinematicBlue.update(steeringBlue, delta / 1000);
 
-    if (currentBehavior === wanderBehavior) {
-      // Actualiza la posición de green
-      this.green.x = kinematicGreen.position.x;
-      this.green.y = kinematicGreen.position.y;
-
-      // Actualiza la orientación del sprite según la dirección de la velocidad
-      let angle = Phaser.Math.RadToDeg(kinematicGreen.orientation);
-
-      // Dependiendo del ángulo, selecciona la animación adecuada
-      if (angle > -45 && angle <= 45) {
-        this.green.anims.play("green-walk-right", true);
-      } else if (angle > 45 && angle <= 135) {
-        this.green.anims.play("green-walk-down", true);
-      } else if (angle > 135 || angle <= -135) {
-        this.green.anims.play("green-walk-left", true);
-      } else {
-        this.green.anims.play("green-walk-up", true);
-      }
-    } else if (currentBehavior === dynamicWanderBehavior) {
-      // Actualizar todos los personajes green para que deambulen
-      greenCharacters.forEach((greenCharacter) => {
-        if (greenCharacter.dynamicWanderBehavior) {
-          greenCharacter.dynamicWanderBehavior.getSteering(); // Actualiza el comportamiento DinamicWander
-        }
-      });
-    } else if (currentBehavior === faceBehavior) {
-      // Para cada personaje green, actualiza la rotación para mirar a red
-      greenCharacters.forEach((green) => {
-        const direction = new Phaser.Math.Vector2(
-          this.red.x - green.x,
-          this.red.y - green.y
-        ).normalize();
-
-        // Calcula el ángulo de rotación
-        green.rotation = Phaser.Math.Angle.Between(
-          green.x,
-          green.y,
-          this.red.x,
-          this.red.y
-        );
-
-        // Aquí podrías establecer una animación fija, si lo deseas
-        green.anims.play("green-idle", true); // Ejemplo de animación de "idle"
-      });
-    } else if (
-      currentBehavior === kinematicArrive ||
-      currentBehavior === seekBehavior ||
-      currentBehavior === kinematicFlee
-    ) {
+    if (currentBehavior === seekBehavior) {
       // Actualiza la posición de "green"
       this.green.x = kinematicGreen.position.x;
       this.green.y = kinematicGreen.position.y;
@@ -639,14 +802,14 @@ function update(time, delta) {
         this.green.anims.stop();
         this.green.setFrame(0); // O el último frame que desees mostrar
       }
-    } else if (currentBehavior instanceof Align) {
-      // Aplicar el steering al character 'green'
-      // this.green.velocity.add(steeringGreen.linear); // Ajusta la velocidad
-      this.green.rotation = steeringGreen.angular;
     } else {
       // Actualiza la posición de "green"
       this.green.x = kinematicGreen.position.x;
       this.green.y = kinematicGreen.position.y;
+      this.arceus.x = kinematicArceus.position.x;
+      this.arceus.y = kinematicArceus.position.y;
+      this.blue.x = kinematicBlue.position.x;
+      this.blue.y = kinematicBlue.position.y;
 
       // Calcula la dirección en la que "green" se está moviendo con respecto a "red"
       const direction = new Phaser.Math.Vector2(
@@ -654,12 +817,34 @@ function update(time, delta) {
         this.red.y - this.green.y
       ).normalize();
 
+      const direction2 = new Phaser.Math.Vector2(
+        this.red.x - this.arceus.x,
+        this.red.y - this.arceus.y
+      ).normalize();
+
+      const direction3 = new Phaser.Math.Vector2(
+        this.red.x - this.blue.x,
+        this.red.y - this.blue.y
+      )
+
       // Verifica la distancia entre "red" y "green"
       const distance = Phaser.Math.Distance.Between(
         this.red.x,
         this.red.y,
         this.green.x,
         this.green.y
+      );
+      const distance2 = Phaser.Math.Distance.Between(
+        this.red.x,
+        this.red.y,
+        this.arceus.x,
+        this.arceus.y
+      );
+      const distance3 = Phaser.Math.Distance.Between(
+        this.red.x,
+        this.red.y,
+        this.blue.x,
+        this.blue.y
       );
       const stoppingDistance = 20; // Distancia para detener a "green"
 
@@ -682,6 +867,48 @@ function update(time, delta) {
         // Detiene la animación y la posición de "green" cuando alcanza a "red"
         this.green.anims.stop();
         this.green.setFrame(0); // O el último frame que desees mostrar
+      }
+
+      if (distance2 > stoppingDistance) {
+        // Determina la animación de "green" según la dirección
+        if (Math.abs(direction2.x) > Math.abs(direction2.y)) {
+          if (direction2.x > 0) {
+            this.arceus.anims.play("arceus-walk-right", true);
+          } else {
+            this.arceus.anims.play("arceus-walk-left", true);
+          }
+        } else {
+          if (direction2.y > 0) {
+            this.arceus.anims.play("arceus-walk-down", true);
+          } else {
+            this.arceus.anims.play("arceus-walk-up", true);
+          }
+        }
+      } else {
+        // Detiene la animación y la posición de "green" cuando alcanza a "red"
+        this.arceus.anims.stop();
+        this.arceus.setFrame(0); // O el último frame que desees mostrar
+      }
+
+      if (distance3 > stoppingDistance) {
+        // Determina la animación de "green" según la dirección
+        if (Math.abs(direction3.x) > Math.abs(direction3.y)) {
+          if (direction3.x > 0) {
+            this.blue.anims.play("blue-walk-right", true);
+          } else {
+            this.blue.anims.play("blue-walk-left", true);
+          }
+        } else {
+          if (direction3.y > 0) {
+            this.blue.anims.play("blue-walk-down", true);
+          } else {
+            this.blue.anims.play("blue-walk-up", true);
+          }
+        }
+      } else {
+        // Detiene la animación y la posición de "green" cuando alcanza a "red"
+        this.blue.anims.stop();
+        this.blue.setFrame(0); // O el último frame que desees mostrar
       }
     }
   }

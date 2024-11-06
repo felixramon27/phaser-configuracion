@@ -21,6 +21,12 @@ export class Arrive {
   getSteering() {
     let result = new SteeringOutput();
 
+    // Verifica si el target y su posición están definidos
+    if (!this.target || !this.target.position) {
+      console.warn("El target o su posición no están definidos");
+      return null; // o maneja el error como consideres adecuado
+    }
+
     let direction = this.target.position.clone().subtract(this.character.position);
     let distance = direction.length();
 
