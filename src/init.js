@@ -284,6 +284,7 @@ class ArceusStateMachine {
   }
 
   escape() {
+    this.arceus.clearTint();
     if (this.pathNodes1 && this.pathIndexCurrent < this.pathNodes1.length) {
       const currentTarget = {
         position: new Phaser.Math.Vector2(this.pathNodes1[this.pathIndexCurrent].x, this.pathNodes1[this.pathIndexCurrent].y),
