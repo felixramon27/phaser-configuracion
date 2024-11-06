@@ -813,42 +813,21 @@ function update(time, delta) {
 
       // Calcula la dirección en la que "green" se está moviendo con respecto a "red"
       const direction = new Phaser.Math.Vector2(
-        this.red.x - this.green.x,
-        this.red.y - this.green.y
+        this.green.x,
+        this.green.y
       ).normalize();
 
       const direction2 = new Phaser.Math.Vector2(
-        this.red.x - this.arceus.x,
-        this.red.y - this.arceus.y
+        this.arceus.x,
+        this.arceus.y
       ).normalize();
 
       const direction3 = new Phaser.Math.Vector2(
-        this.red.x - this.blue.x,
-        this.red.y - this.blue.y
-      ).normalize();
-
-      // Verifica la distancia entre "red" y "green"
-      const distance = Phaser.Math.Distance.Between(
-        this.red.x,
-        this.red.y,
-        this.green.x,
-        this.green.y
-      );
-      const distance2 = Phaser.Math.Distance.Between(
-        this.red.x,
-        this.red.y,
-        this.arceus.x,
-        this.arceus.y
-      );
-      const distance3 = Phaser.Math.Distance.Between(
-        this.red.x,
-        this.red.y,
         this.blue.x,
         this.blue.y
-      );
-      const stoppingDistance = 20; // Distancia para detener a "green"
+      ).normalize();
 
-      if (distance > stoppingDistance) {
+      if (direction.length() > 0) {
         // Determina la animación de "green" según la dirección
         if (Math.abs(direction.x) > Math.abs(direction.y)) {
           if (direction.x > 0) {
@@ -869,8 +848,8 @@ function update(time, delta) {
         this.green.setFrame(0); // O el último frame que desees mostrar
       }
 
-      if (distance2 > stoppingDistance) {
-        // Determina la animación de "green" según la dirección
+      if (direction2.length() > 0) {
+        // Determina la animación de "arceus" según la dirección
         if (Math.abs(direction2.x) > Math.abs(direction2.y)) {
           if (direction2.x > 0) {
             this.arceus.anims.play("arceus-walk-right", true);
@@ -885,13 +864,13 @@ function update(time, delta) {
           }
         }
       } else {
-        // Detiene la animación y la posición de "green" cuando alcanza a "red"
+        // Detiene la animación y la posición de "arceus" cuando alcanza a "red"
         this.arceus.anims.stop();
         this.arceus.setFrame(0); // O el último frame que desees mostrar
       }
 
-      if (distance3 > stoppingDistance) {
-        // Determina la animación de "green" según la dirección
+      if (direction3.length() > 0) {
+        // Determina la animación de "blue" según la dirección
         if (Math.abs(direction3.x) > Math.abs(direction3.y)) {
           if (direction3.x > 0) {
             this.blue.anims.play("blue-walk-right", true);
@@ -906,7 +885,7 @@ function update(time, delta) {
           }
         }
       } else {
-        // Detiene la animación y la posición de "green" cuando alcanza a "red"
+        // Detiene la animación y la posición de "blue" cuando alcanza a "red"
         this.blue.anims.stop();
         this.blue.setFrame(0); // O el último frame que desees mostrar
       }
