@@ -163,10 +163,10 @@ class ArceusStateMachine {
 }
 
 class GreenStateMachine {
-  constructor(green, red, cave, grafo, drawPath) {
+  constructor(green, red, houseGreen, grafo, drawPath) {
     this.green = green;
     this.red = red;
-    this.cave = cave;
+    this.houseGreen = houseGreen;
     this.grafo = grafo;
     this.drawPath = drawPath;
     this.state = "patrol";
@@ -225,7 +225,7 @@ class GreenStateMachine {
   }
 
   alert() {
-    this.green.setTint(0xff0000);
+    this.green.setTint(0x008000);
   }
 
   escape() {
@@ -272,7 +272,7 @@ class GreenStateMachine {
   startEscape() {
     pathNodes = [];
 
-    let newPath = this.calculatePath("4,16");
+    let newPath = this.calculatePath("6,1");
     this.pathNodes = newPath?.map((node) => {
       const [x, y] = node.node.split(",").map(Number);
       return {
@@ -584,11 +584,12 @@ function create() {
     .setOrigin(0.5, 0.5); // Agrega el sprite de green
 
   this.cave = { x: 224, y: 1056 }; // Posición de la cueva
+  this.houseGreen = { x: 224, y: 1056 }; // Posición de la casa de green
 
   this.greenStateMachine = new GreenStateMachine(
     this.green,
     this.red,
-    this.cave
+    this.houseGreen
   );
 
   this.arceusStateMachine = new ArceusStateMachine(
