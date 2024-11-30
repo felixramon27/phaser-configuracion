@@ -2,6 +2,10 @@ import { Kinematic } from "./classes/Kinematic.js";
 import { Arrive } from "./classes/Arrive.js";
 import { Flee } from "./classes/Flee.js";
 import { Seek } from "./classes/Seek.js";
+import drawPath from "./drawPath.js";
+import createGraph from "./createGraph.js";
+import pathfindDijkstra from "./pathfindDijkstra.js";
+import pixelToGraphCoord from "./pixelToGraphCoord.js";
 
 let collisionLayer;
 let graphics;
@@ -34,203 +38,6 @@ let graphicsArceus;
 let graphicsBlue;
 let graphicsGreen;
 
-function createGraph(collisionLayer) {
-  const graph = {}; // Almacenará los nodos y sus conexiones
-
-  for (let y = 0; y < collisionLayer.length; y++) {
-    for (let x = 0; x < collisionLayer[y].length; x++) {
-      const tile = collisionLayer[y][x];
-      const isWalkable = tile.index === -1; // Determina si el tile es transitable
-
-      if (isWalkable) {
-        const key = `${x},${y}`; // Clave única para cada nodo (tile transitable)
-        graph[key] = [];
-
-        // Agrega conexiones con tiles adyacentes
-        const neighbors = [
-          { dx: 1, dy: 0 }, // Derecha
-          { dx: -1, dy: 0 }, // Izquierda
-          { dx: 0, dy: 1 }, // Abajo
-          { dx: 0, dy: -1 }, // Arriba
-        ];
-
-        neighbors.forEach(({ dx, dy }) => {
-          const nx = x + dx;
-          const ny = y + dy;
-
-          // Verificar si el vecino está dentro del mapa y es transitable
-          if (
-            ny >= 0 &&
-            ny < collisionLayer.length &&
-            nx >= 0 &&
-            nx < collisionLayer[ny].length &&
-            collisionLayer[ny][nx].index === -1
-          ) {
-            const neighborKey = `${nx},${ny}`;
-            graph[key].push({ node: neighborKey, cost: 1 });
-          }
-        });
-      }
-    }
-  }
-
-  return graph;
-}
-
-class PriorityQueue {
-  constructor() {
-    this.items = [];
-  }
-
-  isEmpty() {
-    return this.items.length === 0;
-  }
-
-  // Insertar un nodo en la cola
-  enqueue(item, priority) {
-    this.items.push({ item, priority });
-    this.bubbleUp(this.items.length - 1);
-  }
-
-  // Extraer el nodo con menor prioridad (menor costo)
-  dequeue() {
-    const min = this.items[0];
-    const last = this.items.pop();
-    if (!this.isEmpty()) {
-      this.items[0] = last;
-      this.bubbleDown(0);
-    }
-    return min.item;
-  }
-
-  // Ajustar hacia arriba después de una inserción
-  bubbleUp(index) {
-    while (index > 0) {
-      const parentIndex = Math.floor((index - 1) / 2);
-      if (this.items[index].priority >= this.items[parentIndex].priority) break;
-      [this.items[index], this.items[parentIndex]] = [
-        this.items[parentIndex],
-        this.items[index],
-      ];
-      index = parentIndex;
-    }
-  }
-
-  // Ajustar hacia abajo después de una extracción
-  bubbleDown(index) {
-    const length = this.items.length;
-    while (true) {
-      const left = 2 * index + 1;
-      const right = 2 * index + 2;
-      let smallest = index;
-
-      if (
-        left < length &&
-        this.items[left].priority < this.items[smallest].priority
-      ) {
-        smallest = left;
-      }
-      if (
-        right < length &&
-        this.items[right].priority < this.items[smallest].priority
-      ) {
-        smallest = right;
-      }
-      if (smallest === index) break;
-
-      [this.items[index], this.items[smallest]] = [
-        this.items[smallest],
-        this.items[index],
-      ];
-      index = smallest;
-    }
-  }
-}
-
-// Dijkstra's Pathfinding Algorithm
-function pathfindDijkstra(graph, start, goal) {
-  class NodeRecord {
-    constructor(node, connection, cost) {
-      this.node = node;
-      this.connection = connection;
-      this.cost = cost;
-    }
-  }
-
-  const startRecord = new NodeRecord(start, null, 0);
-  const open = new PriorityQueue();
-  open.enqueue(startRecord, startRecord.cost);
-  const closed = new Set();
-
-  let current = null;
-
-  while (!open.isEmpty()) {
-    current = open.dequeue();
-
-    if (current.node === goal) break;
-
-    const connections = graph[current.node];
-
-    // Asegurarse de que `connections` es un array antes de intentar iterar
-    if (!Array.isArray(connections)) continue;
-
-    for (let next of connections) {
-      const endNode = next.node;
-      const endNodeCost = current.cost + next.cost;
-
-      if (closed.has(endNode)) continue;
-
-      const openRecord = open.items.find(
-        (record) => record.item.node === endNode
-      );
-      if (openRecord) {
-        if (openRecord.item.cost <= endNodeCost) continue;
-        openRecord.item.cost = endNodeCost;
-        openRecord.item.connection = current;
-        open.bubbleUp(open.items.indexOf(openRecord));
-      } else {
-        const endNodeRecord = new NodeRecord(endNode, current, endNodeCost);
-        open.enqueue(endNodeRecord, endNodeCost);
-      }
-    }
-
-    closed.add(current.node);
-  }
-
-  if (current.node !== goal) return null;
-
-  const path = [];
-  while (current.node !== start) {
-    path.push(current.connection);
-    current = current.connection;
-  }
-
-  return path.reverse();
-}
-
-function drawPath(graphics,path, tileWidth, tileHeight) {
-  if (!path || path.length === 0) return;
-
-  graphics.clear(); // Limpia solo el gráfico pasado como parámetro
-
-  graphics.lineStyle(3, 0xffff00, 1); // Configura el estilo de la línea (color amarillo y grosor de 3)
-
-  for (let i = 0; i < path.length - 1; i++) {
-    const [x1, y1] = path[i].node.split(",").map(Number);
-    const [x2, y2] = path[i + 1].node.split(",").map(Number);
-
-    const startX = x1 * tileWidth + tileWidth / 2;
-    const startY = y1 * tileHeight + tileHeight / 2;
-    const endX = x2 * tileWidth + tileWidth / 2;
-    const endY = y2 * tileHeight + tileHeight / 2;
-
-    graphics.moveTo(startX, startY);
-    graphics.lineTo(endX, endY);
-  }
-
-  graphics.strokePath(); // Dibuja la ruta en el mapa
-}
-
 class ArceusStateMachine {
   constructor(arceus, red, cave, grafo, drawPath) {
     this.arceus = arceus;
@@ -240,7 +47,7 @@ class ArceusStateMachine {
     this.drawPath = drawPath;
     this.state = "patrol";
     this.detectionRadius = 100;
-    
+
     // Inicializar estas propiedades correctamente
     this.pathNodes1 = []; // Lista de nodos del camino actual
     this.pathIndexCurrent = 0; // Índice del nodo actual en el camino
@@ -250,14 +57,28 @@ class ArceusStateMachine {
     switch (this.state) {
       case "patrol":
         this.patrol();
-        if (Phaser.Math.Distance.Between(this.arceus.x, this.arceus.y, this.red.x, this.red.y) < this.detectionRadius) {
+        if (
+          Phaser.Math.Distance.Between(
+            this.arceus.x,
+            this.arceus.y,
+            this.red.x,
+            this.red.y
+          ) < this.detectionRadius
+        ) {
           this.changeState("alert");
         }
         break;
 
       case "alert":
         this.alert();
-        if (Phaser.Math.Distance.Between(this.arceus.x, this.arceus.y, this.red.x, this.red.y) >= this.detectionRadius) {
+        if (
+          Phaser.Math.Distance.Between(
+            this.arceus.x,
+            this.arceus.y,
+            this.red.x,
+            this.red.y
+          ) >= this.detectionRadius
+        ) {
           this.changeState("escape");
         }
         break;
@@ -287,7 +108,10 @@ class ArceusStateMachine {
     this.arceus.clearTint();
     if (this.pathNodes1 && this.pathIndexCurrent < this.pathNodes1.length) {
       const currentTarget = {
-        position: new Phaser.Math.Vector2(this.pathNodes1[this.pathIndexCurrent].x, this.pathNodes1[this.pathIndexCurrent].y),
+        position: new Phaser.Math.Vector2(
+          this.pathNodes1[this.pathIndexCurrent].x,
+          this.pathNodes1[this.pathIndexCurrent].y
+        ),
       };
       arriveBehavior2.target = currentTarget;
 
@@ -310,14 +134,18 @@ class ArceusStateMachine {
   }
 
   calculatePath(destination) {
-    let startGraphCoord = pixelToGraphCoord(this.arceus.x, this.arceus.y, tileWidth, tileHeight);
+    let startGraphCoord = pixelToGraphCoord(
+      this.arceus.x,
+      this.arceus.y,
+      tileWidth,
+      tileHeight
+    );
     let endGraphCoord = destination;
     let path = pathfindDijkstra(grafo, startGraphCoord, endGraphCoord);
     return path;
   }
 
   startEscape() {
-
     pathNodes1 = [];
 
     let newPath = this.calculatePath("4,16");
@@ -334,13 +162,128 @@ class ArceusStateMachine {
   }
 }
 
+class GreenStateMachine {
+  constructor(green, red, cave, grafo, drawPath) {
+    this.green = green;
+    this.red = red;
+    this.cave = cave;
+    this.grafo = grafo;
+    this.drawPath = drawPath;
+    this.state = "patrol";
+    this.detectionRadius = 100;
 
-function pixelToGraphCoord(x, y, tileWidth, tileHeight) {
-  // Calcular la posición relativa en el grafo a partir de las coordenadas en píxeles
-  let graphX = Math.floor(x / tileWidth);
-  let graphY = Math.floor(y / tileHeight);
+    // Inicializar estas propiedades correctamente
+    this.pathNodes = []; // Lista de nodos del camino actual
+    this.pathIndexCurrent = 0; // Índice del nodo actual en el camino
+  }
 
-  return `${graphX},${graphY}`;
+  update() {
+    switch (this.state) {
+      case "patrol":
+        this.patrol();
+        if (
+          Phaser.Math.Distance.Between(
+            this.green.x,
+            this.green.y,
+            this.red.x,
+            this.red.y
+          ) < this.detectionRadius
+        ) {
+          this.changeState("alert");
+        }
+        break;
+
+      case "alert":
+        this.alert();
+        if (
+          Phaser.Math.Distance.Between(
+            this.green.x,
+            this.green.y,
+            this.red.x,
+            this.red.y
+          ) >= this.detectionRadius
+        ) {
+          this.changeState("escape");
+        }
+        break;
+
+      case "escape":
+        this.escape();
+        break;
+    }
+  }
+
+  changeState(newState) {
+    this.state = newState;
+    if (newState === "escape") {
+      this.startEscape();
+    }
+  }
+
+  patrol() {
+    this.green.clearTint();
+  }
+
+  alert() {
+    this.green.setTint(0xff0000);
+  }
+
+  escape() {
+    this.green.clearTint();
+    if (this.pathNodes && this.pathIndexCurrent < this.pathNodes.length) {
+      const currentTarget = {
+        position: new Phaser.Math.Vector2(
+          this.pathNodes[this.pathIndexCurrent].x,
+          this.pathNodes[this.pathIndexCurrent].y
+        ),
+      };
+      arriveBehavior.target = currentTarget;
+
+      const distance = Phaser.Math.Distance.Between(
+        kinematicGreen.position.x,
+        kinematicGreen.position.y,
+        currentTarget.position.x,
+        currentTarget.position.y
+      );
+
+      if (distance < 10) {
+        this.pathIndexCurrent++;
+        if (this.pathIndexCurrent >= this.pathNodes.length) {
+          arriveBehavior.target = null;
+          this.green.setVisible(false);
+          this.state = null; // Termina la máquina de estados
+        }
+      }
+    }
+  }
+
+  calculatePath(destination) {
+    let startGraphCoord = pixelToGraphCoord(
+      this.green.x,
+      this.green.y,
+      tileWidth,
+      tileHeight
+    );
+    let endGraphCoord = destination;
+    let path = pathfindDijkstra(grafo, startGraphCoord, endGraphCoord);
+    return path;
+  }
+
+  startEscape() {
+    pathNodes = [];
+
+    let newPath = this.calculatePath("4,16");
+    this.pathNodes = newPath?.map((node) => {
+      const [x, y] = node.node.split(",").map(Number);
+      return {
+        x: x * tileWidth + tileWidth / 2,
+        y: y * tileHeight + tileHeight / 2,
+      };
+    });
+
+    this.pathIndexCurrent = 0; // Reinicia el índice de camino
+    drawPath(graphicsGreen, newPath, tileWidth, tileHeight);
+  }
 }
 
 const config = {
@@ -453,9 +396,9 @@ function create() {
   path1 = pathfindDijkstra(grafo, "1,1", "11,15"); // Para kinematicArceus
   path2 = pathfindDijkstra(grafo, "18,1", "22,18"); // Para kinematicBlue
 
-  drawPath(graphicsGreen,path, map.tileWidth, map.tileHeight);
-  drawPath(graphicsArceus,path1, map.tileWidth, map.tileHeight);
-  drawPath(graphicsBlue,path2, map.tileWidth, map.tileHeight);
+  drawPath(graphicsGreen, path, map.tileWidth, map.tileHeight);
+  drawPath(graphicsArceus, path1, map.tileWidth, map.tileHeight);
+  drawPath(graphicsBlue, path2, map.tileWidth, map.tileHeight);
 
   // Animaciones de red al caminar
   this.anims.create({
@@ -642,6 +585,12 @@ function create() {
 
   this.cave = { x: 224, y: 1056 }; // Posición de la cueva
 
+  this.greenStateMachine = new GreenStateMachine(
+    this.green,
+    this.red,
+    this.cave
+  );
+
   this.arceusStateMachine = new ArceusStateMachine(
     this.arceus,
     this.red,
@@ -777,6 +726,7 @@ function create() {
 function update(time, delta) {
   let lastFrame = 0; // Variable para guardar el último frame
 
+  this.greenStateMachine.update(); // Actualiza el estado del Green
   this.arceusStateMachine.update(); // Actualiza el estado del Arceus
 
   // Control manual para "red"
