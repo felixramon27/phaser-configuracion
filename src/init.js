@@ -179,7 +179,7 @@ let Principal = new Phaser.Class({
   create() {
     // Musica de fondo
     this.sound.add("musicaFondo", { loop: true }).play();
-    
+
     // Cargar el mapa
     const map = this.make.tilemap({
       key: "map",
@@ -433,6 +433,11 @@ let Principal = new Phaser.Class({
       .setScale(1)
       .setOrigin(0.5, 0.5); // Agrega el sprite de green
 
+    this.blue = this.physics.add
+      .sprite(1200, 100, "blue")
+      .setScale(1) // Agrega el sprite de green
+      .setOrigin(0.5, 0.5);
+
     this.cave = { x: 224, y: 1056 }; // Posición de la cueva
     this.houseGreen = { x: 224, y: 1056 }; // Posición de la casa de green
 
@@ -448,10 +453,11 @@ let Principal = new Phaser.Class({
       this.cave
     );
 
-    this.blue = this.physics.add
-      .sprite(1200, 100, "blue")
-      .setScale(1) // Agrega el sprite de green
-      .setOrigin(0.5, 0.5);
+    this.blueStateMachine = new BlueStateMachine(
+      this.blue,
+      this.red,
+      this.gymBlue
+    );
 
     // Agregar colisiones con el mapa green
     this.physics.add.collider(this.green, layer);
@@ -579,6 +585,7 @@ let Principal = new Phaser.Class({
 
     this.greenStateMachine.update(); // Actualiza el estado del Green
     this.arceusStateMachine.update(); // Actualiza el estado del Arceus
+    this.blueStateMachine.update(); // Actualiza el estado del Blue
 
     // Control manual para "red"
     if (this.keys.up.isDown) {
@@ -1075,6 +1082,130 @@ class GreenStateMachine {
 
     this.pathIndexCurrent = 0; // Reinicia el índice de camino
     drawPath(graphicsGreen, newPath, tileWidth, tileHeight);
+  }
+}
+
+class BlueStateMachine {
+  constructor(blue, red, gymBlue, grafo, drawPath) {
+    this.blue = blue;
+    this.red = red;
+    this.gymBlue = gymBlue;
+    this.grafo = grafo;
+    this.drawPath = drawPath;
+    this.state = "patrol";
+    this.detectionRadius = 100;
+
+    // Inicializar estas propiedades correctamente
+    this.pathNodes2 = []; // Lista de nodos del camino actual
+    this.pathIndexCurrent = 0; // Índice del nodo actual en el camino
+  }
+
+  update() {
+    switch (this.state) {
+      case "patrol":
+        this.patrol();
+        if (
+          Phaser.Math.Distance.Between(
+            this.blue.x,
+            this.blue.y,
+            this.red.x,
+            this.red.y
+          ) < this.detectionRadius
+        ) {
+          this.changeState("alert");
+        }
+        break;
+
+      case "alert":
+        this.alert();
+        if (
+          Phaser.Math.Distance.Between(
+            this.blue.x,
+            this.blue.y,
+            this.red.x,
+            this.red.y
+          ) >= this.detectionRadius
+        ) {
+          this.changeState("escape");
+        }
+        break;
+
+      case "escape":
+        this.escape();
+        break;
+    }
+  }
+
+  changeState(newState) {
+    this.state = newState;
+    if (newState === "escape") {
+      this.startEscape();
+    }
+  }
+
+  patrol() {
+    this.blue.clearTint();
+  }
+
+  alert() {
+    this.blue.setTint(0x008000);
+  }
+
+  escape() {
+    this.blue.clearTint();
+    if (this.pathNodes2 && this.pathIndexCurrent < this.pathNodes2.length) {
+      const currentTarget = {
+        position: new Phaser.Math.Vector2(
+          this.pathNodes2[this.pathIndexCurrent].x,
+          this.pathNodes2[this.pathIndexCurrent].y
+        ),
+      };
+      arriveBehavior3.target = currentTarget;
+
+      const distance = Phaser.Math.Distance.Between(
+        kinematicBlue.position.x,
+        kinematicBlue.position.y,
+        currentTarget.position.x,
+        currentTarget.position.y
+      );
+
+      if (distance < 10) {
+        this.pathIndexCurrent++;
+        if (this.pathIndexCurrent >= this.pathNodes2.length) {
+          arriveBehavior3.target = null;
+          this.blue.setVisible(false);
+          this.state = null; // Termina la máquina de estados
+        }
+      }
+    }
+  }
+
+  calculatePath(destination) {
+    let startGraphCoord = pixelToGraphCoord(
+      this.blue.x,
+      this.blue.y,
+      tileWidth,
+      tileHeight
+    );
+    let endGraphCoord = destination;
+    let path = pathfindDijkstra(grafo, startGraphCoord, endGraphCoord);
+    return path;
+  }
+
+  startEscape() {
+    pathNodes2 = [];
+
+    let newPath = this.calculatePath("27,7");
+    this.pathNodes2 = newPath?.map((node) => {
+      const [x, y] = node.node.split(",").map(Number);
+      return {
+        x: x * tileWidth + tileWidth / 2,
+        y: y * tileHeight + tileHeight / 2,
+      };
+    });
+
+    this.pathIndexCurrent = 0; // Reinicia el índice de camino
+    drawPath(graphicsBlue, newPath, tileWidth, tileHeight);
   }
 }
 
