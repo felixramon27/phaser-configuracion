@@ -1200,6 +1200,8 @@ class GreenStateMachine {
     // Inicializar estas propiedades correctamente
     this.pathNodes = []; // Lista de nodos del camino actual
     this.pathIndexCurrent = 0; // Índice del nodo actual en el camino
+    this.invisibleTimer = null; // Temporizador para la invisibilidad
+    this.invisibleDuration = 3000; // Tiempo de invisibilidad (3 segundos)
   }
 
   update() {
@@ -1245,6 +1247,29 @@ class GreenStateMachine {
     }
   }
 
+  reset() {
+    path = generatePathForCharacter(grafo, "6,2");
+    pathIndex = 0; // Empieza desde el primer nodo de la nueva ruta
+
+    drawPath(graphicsGreen, path, tileWidth, tileHeight, 0xffff00);
+    pathNodes = path.map((node) => {
+      const [x, y] = node.node.split(",").map(Number);
+      return {
+        x: x * tileWidth + tileWidth / 2,
+        y: y * tileHeight + tileHeight / 2,
+      };
+    });
+    // Establece el primer nodo de la nueva ruta como el objetivo
+    const currentTarget = {
+      position: new Phaser.Math.Vector2(
+        pathNodes[pathIndex].x,
+        pathNodes[pathIndex].y
+      ),
+    };
+    arriveBehavior.target = currentTarget; // Asigna el primer nodo de la nueva ruta como objetivo
+    return (this.state = "patrol"); // Vuelve a patrullar    ;
+  }
+
   patrol() {
     this.green.clearTint();
   }
@@ -1276,7 +1301,17 @@ class GreenStateMachine {
         if (this.pathIndexCurrent >= this.pathNodes.length) {
           arriveBehavior.target = null;
           this.green.setVisible(false);
-          this.state = "patrol"; // Termina la máquina de estados
+          // Activar el temporizador para que vuelva después de 3 segundos
+          if (this.invisibleTimer) {
+            clearTimeout(this.invisibleTimer);
+          }
+          this.invisibleTimer = setTimeout(() => {
+            this.green.setVisible(true); // El personaje se vuelve visible después de 3 segundos
+            this.state = "reset"; // Vuelve a patrullar
+            this.reset(); // Genera una nueva ruta aleatoria
+            // Aquí, reseteamos la velocidad para asegurar que no haya velocidad inicial
+            this.green.setVelocity(0, 0); // Restablece la velocidad
+          }, this.invisibleDuration);
         }
       }
     }
