@@ -38,6 +38,35 @@ let graphicsArceus;
 let graphicsBlue;
 let graphicsGreen;
 let iniciar;
+const maxX = 28;
+const maxY = 18;
+
+function generateRandomPosition(grafo) {
+  // Suponiendo que `grafo` es un objeto donde las claves son las coordenadas
+  const puntosExistentes = Object.keys(grafo); // Obtiene las coordenadas existentes
+  const puntoAleatorio =
+    puntosExistentes[Math.floor(Math.random() * puntosExistentes.length)];
+  return puntoAleatorio;
+}
+
+function generatePathForCharacter(grafo, ultimoNodo) {
+  console.log("🚀 ~ generatePathForCharacter ~ ultimoNodo:", ultimoNodo);
+  let start, end;
+
+  if (ultimoNodo) {
+    start = ultimoNodo;
+  } else {
+    start = generateRandomPosition(grafo);
+    console.log("🚀 ~ generatePathForCharacter ~ start:", start);
+  }
+
+  do {
+    end = generateRandomPosition(grafo);
+  } while (start === end); // Evitar que el inicio y el final sean iguales
+
+  const path = pathfindDijkstra(grafo, start, end);
+  return path;
+}
 
 let Inicio = new Phaser.Class({
   Extends: Phaser.Scene,
@@ -152,6 +181,11 @@ let Principal = new Phaser.Class({
   preload() {
     this.load.audio("musicaFondo", "assets/PokemonGym.mp3");
 
+    this.load.spritesheet("vidas", "assets/vidas.png", {
+      frameWidth: 300,
+      frameHeight: 300,
+    });
+
     this.load.spritesheet("red", "assets/red.png", {
       frameWidth: 64,
       frameHeight: 64,
@@ -242,13 +276,19 @@ let Principal = new Phaser.Class({
     grafo = createGraph(collisionLayer);
     console.log("🚀 ~ create ~ grafo:", grafo);
 
-    path = pathfindDijkstra(grafo, "1,6", "20,16");
-    path1 = pathfindDijkstra(grafo, "1,1", "11,15"); // Para kinematicArceus
-    path2 = pathfindDijkstra(grafo, "18,1", "22,18"); // Para kinematicBlue
+    // path = pathfindDijkstra(grafo, "1,6", "20,16"); // Para kinematicGreen
+    // path1 = pathfindDijkstra(grafo, "1,1", "11,15"); // Para kinematicArceus
+    // path2 = pathfindDijkstra(grafo, "18,1", "22,18"); // Para kinematicBlue
 
-    drawPath(graphicsGreen, path, map.tileWidth, map.tileHeight);
-    drawPath(graphicsArceus, path1, map.tileWidth, map.tileHeight);
-    drawPath(graphicsBlue, path2, map.tileWidth, map.tileHeight);
+    // Generar rutas para los personajes
+    path = generatePathForCharacter(grafo);
+    console.log("🚀 ~ create ~ path:", path);
+    path1 = generatePathForCharacter(grafo);
+    path2 = generatePathForCharacter(grafo);
+
+    drawPath(graphicsGreen, path, map.tileWidth, map.tileHeight, 0xffff00);
+    drawPath(graphicsArceus, path1, map.tileWidth, map.tileHeight, 0xffff00);
+    drawPath(graphicsBlue, path2, map.tileWidth, map.tileHeight, 0xffff00);
 
     // Animaciones de red al caminar
     this.anims.create({
@@ -291,6 +331,107 @@ let Principal = new Phaser.Class({
       key: "red-idle",
       frames: [{ key: "red", frame: 0 }],
     });
+
+    let textoVidaRed = this.add
+      .text(game.config.width / 2, game.config.height / 2, "Vida de Red", {
+        fontSize: "40px",
+        fill: "#FF0000",
+        stroke: "#FF0000",
+        strokeThickness: 6,
+        shadow: {
+          offsetX: 2,
+          offsetY: 2,
+          color: "#000",
+          blur: 2,
+          fill: true,
+        },
+      })
+      .setPosition(75, 100); // Cambiar posición
+
+    this.vidas = this.add.sprite(
+      game.config.width / 2,
+      game.config.height / 2,
+      "vidas"
+    );
+
+    this.vidas.setScale(0.3); // Reducir el tamaño al 30%
+    this.vidas.setPosition(225, 180); // Cambiar posición
+
+    // Animaciones de vidas
+    // Animación de perder vida
+    this.anims.create({
+      key: "perderVida",
+      frames: this.anims.generateFrameNumbers("vidas", { start: 0, end: 2 }),
+      frameRate: 10,
+      repeat: 0, // Se ejecuta una vez
+    });
+
+    // Animación de ganar vida (en reversa)
+    this.anims.create({
+      key: "ganarVida",
+      frames: this.anims.generateFrameNumbers("vidas", { start: 2, end: 0 }),
+      frameRate: 10,
+      repeat: 0,
+    });
+
+    this.vidas.on("animationcomplete", (anim, frame) => {
+      if (anim.key === "perderVida") {
+        console.log("El personaje perdió una vida");
+      } else if (anim.key === "ganarVida") {
+        console.log("El personaje ganó una vida");
+      }
+    });
+
+    let textoVidaBlue = this.add
+      .text(game.config.width / 2, game.config.height / 2, "Vida de Blue", {
+        fontSize: "40px",
+        fill: "#0000ff",
+        stroke: "#0000ff",
+        strokeThickness: 6,
+        shadow: {
+          offsetX: 2,
+          offsetY: 2,
+          color: "#fff",
+          blur: 2,
+          fill: true,
+        },
+      })
+      .setPosition(1550, 100); // Cambiar posición
+
+    this.vidasBlue = this.add.sprite(
+      game.config.width / 2,
+      game.config.height / 2,
+      "vidas"
+    );
+
+    this.vidasBlue.setScale(0.3); // Reducir el tamaño al 30%
+    this.vidasBlue.setPosition(1700, 180); // Cambiar posición
+
+    // Animaciones de vidas
+    // Animación de perder vida
+    this.anims.create({
+      key: "perderVidaBlue",
+      frames: this.anims.generateFrameNumbers("vidas", { start: 0, end: 2 }),
+      frameRate: 10,
+      repeat: 0, // Se ejecuta una vez
+    });
+
+    // Animación de ganar vida (en reversa)
+    this.anims.create({
+      key: "ganarVidaBlue",
+      frames: this.anims.generateFrameNumbers("vidas", { start: 2, end: 0 }),
+      frameRate: 10,
+      repeat: 0,
+    });
+
+    this.vidasBlue.on("animationcomplete", (anim, frame) => {
+      if (anim.key === "perderVidaBlue") {
+        console.log("El personaje perdió una vida");
+      } else if (anim.key === "ganarVidaBlue") {
+        console.log("El personaje ganó una vida");
+      }
+    });
+
     // Animaciones de green al caminar
     this.anims.create({
       key: "green-walk-down",
@@ -423,53 +564,6 @@ let Principal = new Phaser.Class({
     // Agregar colisiones con el mapa
     this.physics.add.collider(this.red, layer);
 
-    this.green = this.physics.add
-      .sprite(100, 400, "green")
-      .setScale(1)
-      .setOrigin(0.5, 0.5); // Agrega el sprite de green
-
-    this.arceus = this.physics.add
-      .sprite(100, 100, "arceus")
-      .setScale(1)
-      .setOrigin(0.5, 0.5); // Agrega el sprite de green
-
-    this.blue = this.physics.add
-      .sprite(1200, 100, "blue")
-      .setScale(1) // Agrega el sprite de green
-      .setOrigin(0.5, 0.5);
-
-    this.cave = { x: 224, y: 1056 }; // Posición de la cueva
-    this.houseGreen = { x: 224, y: 1056 }; // Posición de la casa de green
-
-    this.greenStateMachine = new GreenStateMachine(
-      this.green,
-      this.red,
-      this.houseGreen
-    );
-
-    this.arceusStateMachine = new ArceusStateMachine(
-      this.arceus,
-      this.red,
-      this.cave
-    );
-
-    this.blueStateMachine = new BlueStateMachine(
-      this.blue,
-      this.red,
-      this.gymBlue
-    );
-
-    // Agregar colisiones con el mapa green
-    this.physics.add.collider(this.green, layer);
-    this.physics.add.collider(this.arceus, layer);
-    this.physics.add.collider(this.blue, layer);
-    // Agregar colisiones con el personaje red
-    this.physics.add.collider(this.green, this.red);
-    this.physics.add.collider(this.arceus, this.red);
-    this.physics.add.collider(this.blue, this.red);
-
-    this.keys = this.input.keyboard.createCursorKeys();
-
     pathNodes = path.map((node) => {
       const [x, y] = node.node.split(",").map(Number);
       return {
@@ -493,6 +587,65 @@ let Principal = new Phaser.Class({
         y: y * tileHeight + tileHeight / 2,
       };
     });
+
+    this.green = this.physics.add
+      .sprite(pathNodes[0].x, pathNodes[0].y, "green")
+      .setScale(1)
+      .setOrigin(0.5, 0.5); // Agrega el sprite de green
+
+    this.arceus = this.physics.add
+      .sprite(pathNodes1[0].x, pathNodes1[0].y, "arceus")
+      .setScale(1)
+      .setOrigin(0.5, 0.5); // Agrega el sprite de arceus
+
+    this.blue = this.physics.add
+      .sprite(pathNodes2[0].x, pathNodes2[0].y, "blue")
+      .setScale(1) // Agrega el sprite de blue
+      .setOrigin(0.5, 0.5);
+
+    this.cave = { x: 224, y: 1056 }; // Posición de la cueva
+    this.houseGreen = { x: 224, y: 1056 }; // Posición de la casa de green
+
+    this.greenStateMachine = new GreenStateMachine(
+      this.green,
+      this.red,
+      this.houseGreen
+    );
+
+    this.arceusStateMachine = new ArceusStateMachine(
+      this.arceus,
+      this.red,
+      this.cave,
+      this.vidas
+    );
+
+    this.blueStateMachine = new BlueStateMachine(
+      this.blue,
+      this.red,
+      this.gymBlue
+    );
+
+    // Agregar colisiones con el mapa green
+    this.physics.add.collider(this.green, layer);
+    this.physics.add.collider(this.arceus, layer);
+    this.physics.add.collider(this.blue, layer);
+    // Agregar colisiones con el personaje red
+    this.physics.add.overlap(this.red, this.arceus, () => {
+      this.vidas.play("perderVida"); // Animación de pérdida de vida
+    });
+
+    this.physics.add.overlap(this.red, this.blue, () => {
+      this.vidasBlue.play("perderVidaBlue"); // Animación de pérdida de vida
+    });
+
+    this.physics.add.overlap(this.red, this.green, () => {
+      this.vidas.play("ganarVida"); // Animación de ganar vida
+    });
+    // this.physics.add.collider(this.green, this.red);
+    // this.physics.add.collider(this.arceus, this.red);
+    // this.physics.add.collider(this.blue, this.red);
+
+    this.keys = this.input.keyboard.createCursorKeys();
 
     // Inicializa el objeto Kinematic de green
     kinematicGreen = new Kinematic(
@@ -623,12 +776,6 @@ let Principal = new Phaser.Class({
     // Actualiza la posición de "red" en los comportamientos
     // arriveBehavior.target.position.set(this.red.x, this.red.y);
     if (pathNodes && pathIndex < pathNodes.length) {
-      console.log(
-        "🚀 ~ update ~ pathNodes.length:",
-        pathNodes.length,
-        pathIndex,
-        pathNodes[pathIndex]
-      );
       const currentTarget = {
         position: new Phaser.Math.Vector2(
           pathNodes[pathIndex].x,
@@ -647,11 +794,35 @@ let Principal = new Phaser.Class({
 
       // Si `green` ha llegado al objetivo, pasa al siguiente nodo
       if (distance < 10) {
-        // Ajusta este valor según la precisión que desees
         pathIndex++;
         if (pathIndex >= pathNodes.length - 1) {
-          // `green` llegó al último nodo, detén el movimiento
-          arriveBehavior.target = null;
+          console.log("🚀 ~ update ~ pathNodes:", pathNodes);
+          // `green` llegó al último nodo de la ruta anterior, genera una nueva ruta
+          let lastNode = path[path.length - 1].node; // El último nodo alcanzado
+          path = generatePathForCharacter(grafo, lastNode);
+          console.log("🚀 ~ update ~ newPath:", path);
+          pathIndex = 0; // Empieza desde el primer nodo de la nueva ruta
+
+          // Mapea la nueva ruta
+          pathNodes = path.map((node) => {
+            const [x, y] = node.node.split(",").map(Number);
+            return {
+              x: x * tileWidth + tileWidth / 2,
+              y: y * tileHeight + tileHeight / 2,
+            };
+          });
+
+          // Dibuja la nueva ruta
+          drawPath(graphicsGreen, path, tileWidth, tileHeight, 0xffff00);
+
+          // Establece el primer nodo de la nueva ruta como el objetivo
+          const currentTarget = {
+            position: new Phaser.Math.Vector2(
+              pathNodes[pathIndex].x,
+              pathNodes[pathIndex].y
+            ),
+          };
+          arriveBehavior.target = currentTarget; // Asigna el primer nodo de la nueva ruta como objetivo
         }
       }
     }
@@ -675,11 +846,35 @@ let Principal = new Phaser.Class({
 
       // Si `green` ha llegado al objetivo, pasa al siguiente nodo
       if (distance < 10) {
-        // Ajusta este valor según la precisión que desees
         pathIndex1++;
         if (pathIndex1 >= pathNodes1.length - 1) {
-          // `green` llegó al último nodo, detén el movimiento
-          arriveBehavior2.target = null;
+          console.log("🚀 ~ update ~ pathNodes:", pathNodes1);
+          // `green` llegó al último nodo de la ruta anterior, genera una nueva ruta
+          let lastNodeArceus = path1[path1.length - 1].node; // El último nodo alcanzado
+          path1 = generatePathForCharacter(grafo, lastNodeArceus);
+          console.log("🚀 ~ update ~ newPath:", path1);
+          pathIndex1 = 0; // Empieza desde el primer nodo de la nueva ruta
+
+          // Mapea la nueva ruta
+          pathNodes1 = path1.map((node) => {
+            const [x, y] = node.node.split(",").map(Number);
+            return {
+              x: x * tileWidth + tileWidth / 2,
+              y: y * tileHeight + tileHeight / 2,
+            };
+          });
+
+          // Dibuja la nueva ruta
+          drawPath(graphicsArceus, path1, tileWidth, tileHeight, 0xffff00);
+
+          // Establece el primer nodo de la nueva ruta como el objetivo
+          const currentTarget = {
+            position: new Phaser.Math.Vector2(
+              pathNodes1[pathIndex1].x,
+              pathNodes1[pathIndex1].y
+            ),
+          };
+          arriveBehavior2.target = currentTarget; // Asigna el primer nodo de la nueva ruta como objetivo
         }
       }
     }
@@ -703,11 +898,35 @@ let Principal = new Phaser.Class({
 
       // Si `green` ha llegado al objetivo, pasa al siguiente nodo
       if (distance < 10) {
-        // Ajusta este valor según la precisión que desees
         pathIndex2++;
         if (pathIndex2 >= pathNodes2.length - 1) {
-          // `green` llegó al último nodo, detén el movimiento
-          arriveBehavior3.target = null;
+          console.log("🚀 ~ update ~ pathNodes:", pathNodes2);
+          // `green` llegó al último nodo de la ruta anterior, genera una nueva ruta
+          let lastNodeBlue = path2[path2.length - 1].node; // El último nodo alcanzado
+          path2 = generatePathForCharacter(grafo, lastNodeBlue);
+          console.log("🚀 ~ update ~ newPath:", path2);
+          pathIndex2 = 0; // Empieza desde el primer nodo de la nueva ruta
+
+          // Mapea la nueva ruta
+          pathNodes2 = path2.map((node) => {
+            const [x, y] = node.node.split(",").map(Number);
+            return {
+              x: x * tileWidth + tileWidth / 2,
+              y: y * tileHeight + tileHeight / 2,
+            };
+          });
+
+          // Dibuja la nueva ruta
+          drawPath(graphicsBlue, path2, tileWidth, tileHeight, 0xffff00);
+
+          // Establece el primer nodo de la nueva ruta como el objetivo
+          const currentTarget = {
+            position: new Phaser.Math.Vector2(
+              pathNodes2[pathIndex2].x,
+              pathNodes2[pathIndex2].y
+            ),
+          };
+          arriveBehavior3.target = currentTarget; // Asigna el primer nodo de la nueva ruta como objetivo
         }
       }
     }
@@ -719,11 +938,73 @@ let Principal = new Phaser.Class({
     const steeringGreen = currentBehavior.getSteering();
     const steeringArceus = currentBehavior2.getSteering();
     const steeringBlue = currentBehavior3.getSteering();
+
+    if (steeringArceus) {
+      kinematicArceus.update(steeringArceus, delta / 1000);
+      if (currentBehavior2 === arriveBehavior2) {
+        this.arceus.x = kinematicArceus.position.x;
+        this.arceus.y = kinematicArceus.position.y;
+        const direction2 = new Phaser.Math.Vector2(
+          this.arceus.x,
+          this.arceus.y
+        ).normalize();
+        if (direction2.length() > 0) {
+          // Determina la animación de "arceus" según la dirección
+          if (Math.abs(direction2.x) > Math.abs(direction2.y)) {
+            if (direction2.x > 0) {
+              this.arceus.anims.play("arceus-walk-right", true);
+            } else {
+              this.arceus.anims.play("arceus-walk-left", true);
+            }
+          } else {
+            if (direction2.y > 0) {
+              this.arceus.anims.play("arceus-walk-down", true);
+            } else {
+              this.arceus.anims.play("arceus-walk-up", true);
+            }
+          }
+        } else {
+          // Detiene la animación y la posición de "arceus" cuando alcanza a "red"
+          this.arceus.anims.stop();
+          this.arceus.setFrame(0); // O el último frame que desees mostrar
+        }
+      }
+    }
+
+    if (steeringBlue) {
+      kinematicBlue.update(steeringBlue, delta / 1000);
+      if (currentBehavior3 === arriveBehavior3) {
+        this.blue.x = kinematicBlue.position.x;
+        this.blue.y = kinematicBlue.position.y;
+        const direction3 = new Phaser.Math.Vector2(
+          this.blue.x,
+          this.blue.y
+        ).normalize();
+        if (direction3.length() > 0) {
+          // Determina la animación de "blue" según la dirección
+          if (Math.abs(direction3.x) > Math.abs(direction3.y)) {
+            if (direction3.x > 0) {
+              this.blue.anims.play("blue-walk-right", true);
+            } else {
+              this.blue.anims.play("blue-walk-left", true);
+            }
+          } else {
+            if (direction3.y > 0) {
+              this.blue.anims.play("blue-walk-down", true);
+            } else {
+              this.blue.anims.play("blue-walk-up", true);
+            }
+          }
+        } else {
+          // Detiene la animación y la posición de "blue" cuando alcanza a "red"
+          this.blue.anims.stop();
+          this.blue.setFrame(0); // O el último frame que desees mostrar
+        }
+      }
+    }
+
     if (steeringGreen) {
       kinematicGreen.update(steeringGreen, delta / 1000);
-      kinematicArceus.update(steeringArceus, delta / 1000);
-      kinematicBlue.update(steeringBlue, delta / 1000);
-
       if (currentBehavior === seekBehavior) {
         // Actualiza la posición de "green"
         this.green.x = kinematicGreen.position.x;
@@ -749,25 +1030,11 @@ let Principal = new Phaser.Class({
         // Actualiza la posición de "green"
         this.green.x = kinematicGreen.position.x;
         this.green.y = kinematicGreen.position.y;
-        this.arceus.x = kinematicArceus.position.x;
-        this.arceus.y = kinematicArceus.position.y;
-        this.blue.x = kinematicBlue.position.x;
-        this.blue.y = kinematicBlue.position.y;
 
         // Calcula la dirección en la que "green" se está moviendo con respecto a "red"
         const direction = new Phaser.Math.Vector2(
           this.green.x,
           this.green.y
-        ).normalize();
-
-        const direction2 = new Phaser.Math.Vector2(
-          this.arceus.x,
-          this.arceus.y
-        ).normalize();
-
-        const direction3 = new Phaser.Math.Vector2(
-          this.blue.x,
-          this.blue.y
         ).normalize();
 
         if (direction.length() > 0) {
@@ -789,48 +1056,6 @@ let Principal = new Phaser.Class({
           // Detiene la animación y la posición de "green" cuando alcanza a "red"
           this.green.anims.stop();
           this.green.setFrame(0); // O el último frame que desees mostrar
-        }
-
-        if (direction2.length() > 0) {
-          // Determina la animación de "arceus" según la dirección
-          if (Math.abs(direction2.x) > Math.abs(direction2.y)) {
-            if (direction2.x > 0) {
-              this.arceus.anims.play("arceus-walk-right", true);
-            } else {
-              this.arceus.anims.play("arceus-walk-left", true);
-            }
-          } else {
-            if (direction2.y > 0) {
-              this.arceus.anims.play("arceus-walk-down", true);
-            } else {
-              this.arceus.anims.play("arceus-walk-up", true);
-            }
-          }
-        } else {
-          // Detiene la animación y la posición de "arceus" cuando alcanza a "red"
-          this.arceus.anims.stop();
-          this.arceus.setFrame(0); // O el último frame que desees mostrar
-        }
-
-        if (direction3.length() > 0) {
-          // Determina la animación de "blue" según la dirección
-          if (Math.abs(direction3.x) > Math.abs(direction3.y)) {
-            if (direction3.x > 0) {
-              this.blue.anims.play("blue-walk-right", true);
-            } else {
-              this.blue.anims.play("blue-walk-left", true);
-            }
-          } else {
-            if (direction3.y > 0) {
-              this.blue.anims.play("blue-walk-down", true);
-            } else {
-              this.blue.anims.play("blue-walk-up", true);
-            }
-          }
-        } else {
-          // Detiene la animación y la posición de "blue" cuando alcanza a "red"
-          this.blue.anims.stop();
-          this.blue.setFrame(0); // O el último frame que desees mostrar
         }
       }
     }
@@ -905,6 +1130,7 @@ class ArceusStateMachine {
 
   escape() {
     this.arceus.clearTint();
+
     if (this.pathNodes1 && this.pathIndexCurrent < this.pathNodes1.length) {
       const currentTarget = {
         position: new Phaser.Math.Vector2(
@@ -926,7 +1152,7 @@ class ArceusStateMachine {
         if (this.pathIndexCurrent >= this.pathNodes1.length) {
           arriveBehavior2.target = null;
           this.arceus.setVisible(false);
-          this.state = null; // Termina la máquina de estados
+          this.state = "patrol"; // Termina la máquina de estados
         }
       }
     }
@@ -957,7 +1183,7 @@ class ArceusStateMachine {
     });
 
     this.pathIndexCurrent = 0; // Reinicia el índice de camino
-    drawPath(graphicsArceus, newPath, tileWidth, tileHeight);
+    drawPath(graphicsArceus, newPath, tileWidth, tileHeight, 0x8000ff);
   }
 }
 
@@ -1050,7 +1276,7 @@ class GreenStateMachine {
         if (this.pathIndexCurrent >= this.pathNodes.length) {
           arriveBehavior.target = null;
           this.green.setVisible(false);
-          this.state = null; // Termina la máquina de estados
+          this.state = "patrol"; // Termina la máquina de estados
         }
       }
     }
@@ -1081,7 +1307,7 @@ class GreenStateMachine {
     });
 
     this.pathIndexCurrent = 0; // Reinicia el índice de camino
-    drawPath(graphicsGreen, newPath, tileWidth, tileHeight);
+    drawPath(graphicsGreen, newPath, tileWidth, tileHeight, 0x8000ff);
   }
 }
 
@@ -1174,7 +1400,7 @@ class BlueStateMachine {
         if (this.pathIndexCurrent >= this.pathNodes2.length) {
           arriveBehavior3.target = null;
           this.blue.setVisible(false);
-          this.state = null; // Termina la máquina de estados
+          this.state = "patrol"; // Termina la máquina de estados
         }
       }
     }
@@ -1205,7 +1431,7 @@ class BlueStateMachine {
     });
 
     this.pathIndexCurrent = 0; // Reinicia el índice de camino
-    drawPath(graphicsBlue, newPath, tileWidth, tileHeight);
+    drawPath(graphicsBlue, newPath, tileWidth, tileHeight, 0x8000ff);
   }
 }
 
