@@ -615,14 +615,16 @@ let Principal = new Phaser.Class({
     this.arceusStateMachine = new ArceusStateMachine(
       this.arceus,
       this.red,
-      this.cave,
-      this.vidas
+      this.cave
     );
 
     this.blueStateMachine = new BlueStateMachine(
       this.blue,
       this.red,
-      this.gymBlue
+      this.gymBlue,
+      this.arceus,
+      this.vidasBlue,
+      this.vidas,
     );
 
     // Agregar colisiones con el mapa green
@@ -630,13 +632,13 @@ let Principal = new Phaser.Class({
     this.physics.add.collider(this.arceus, layer);
     this.physics.add.collider(this.blue, layer);
     // Agregar colisiones con el personaje red
-    this.physics.add.overlap(this.red, this.arceus, () => {
-      this.vidas.play("perderVida"); // Animación de pérdida de vida
-    });
+    // this.physics.add.overlap(this.red, this.arceus, () => {
+    //   this.vidas.play("perderVida"); // Animación de pérdida de vida
+    // });
 
-    this.physics.add.overlap(this.red, this.blue, () => {
-      this.vidasBlue.play("perderVidaBlue"); // Animación de pérdida de vida
-    });
+    // this.physics.add.overlap(this.red, this.blue, () => {
+    //   this.vidasBlue.play("perderVidaBlue"); // Animación de pérdida de vida
+    // });
 
     this.physics.add.overlap(this.red, this.green, () => {
       this.vidas.play("ganarVida"); // Animación de ganar vida
@@ -1382,11 +1384,14 @@ class GreenStateMachine {
 }
 
 class BlueStateMachine {
-  constructor(blue, red, gymBlue, grafo, drawPath) {
+  constructor(blue, red, gymBlue, arceus, vidasBlue, vidas, grafo, drawPath) {
     this.blue = blue;
     this.red = red;
+    this.arceus = arceus;
     this.gymBlue = gymBlue;
     this.grafo = grafo;
+    this.vidasBlue = vidasBlue;
+    this.vidas = vidas;
     this.drawPath = drawPath;
     this.state = "patrol";
     this.detectionRadius = 100;
@@ -1408,6 +1413,36 @@ class BlueStateMachine {
             this.blue.y,
             this.red.x,
             this.red.y
+          ) < 200
+        ) {
+          pathIndex2 = 0; // Empieza desde el primer nodo de la nueva ruta
+          pathNodes2 = [];
+          path2 = [];
+          graphicsBlue.clear(); // Limpia solo el gráfico pasado como parámetro
+          const currentTarget = {
+            position: new Phaser.Math.Vector2(this.red.x, this.red.y),
+          };
+          arriveBehavior3.target = currentTarget; // Asigna el nodo actual como el objetivo
+          // arriveBehavior3.target.position.set(this.red.x, this.red.y);
+        }
+
+        if (
+          Phaser.Math.Distance.Between(
+            this.blue.x,
+            this.blue.y,
+            this.red.x,
+            this.red.y
+          ) < 50
+        ) {
+          this.vidas.play("perderVida");
+        }
+
+        if (
+          Phaser.Math.Distance.Between(
+            this.arceus.x,
+            this.arceus.y,
+            this.red.x,
+            this.red.y
           ) < this.detectionRadius
         ) {
           this.changeState("alert");
@@ -1416,10 +1451,11 @@ class BlueStateMachine {
 
       case "alert":
         this.alert();
+
         if (
           Phaser.Math.Distance.Between(
-            this.blue.x,
-            this.blue.y,
+            this.arceus.x,
+            this.arceus.y,
             this.red.x,
             this.red.y
           ) >= this.detectionRadius
@@ -1461,7 +1497,7 @@ class BlueStateMachine {
       ),
     };
     arriveBehavior3.target = currentTarget; // Asigna el primer nodo de la nueva ruta como objetivo
-    return (this.state = "patrol"); // Vuelve a patrullar    ;
+    return (this.state = "patrol"); // Vuelve a patrullar
   }
 
   patrol() {
@@ -1469,11 +1505,23 @@ class BlueStateMachine {
   }
 
   alert() {
-    this.blue.setTint(0x008000);
+    this.blue.setTint(0x0000ff);
   }
 
   escape() {
     this.blue.clearTint();
+
+    if (
+      Phaser.Math.Distance.Between(
+        this.blue.x,
+        this.blue.y,
+        this.red.x,
+        this.red.y
+      ) < this.detectionRadius
+    ) {
+      this.vidasBlue.play("perderVidaBlue");
+    }
+
     if (this.pathNodes2 && this.pathIndexCurrent < this.pathNodes2.length) {
       const currentTarget = {
         position: new Phaser.Math.Vector2(
@@ -1495,6 +1543,7 @@ class BlueStateMachine {
         if (this.pathIndexCurrent >= this.pathNodes2.length) {
           arriveBehavior3.target = null;
           this.blue.setVisible(false);
+          this.vidasBlue.play("ganarVidaBlue");
           // Activar el temporizador para que vuelva después de 3 segundos
           if (this.invisibleTimer) {
             clearTimeout(this.invisibleTimer);
