@@ -1075,6 +1075,8 @@ class ArceusStateMachine {
     // Inicializar estas propiedades correctamente
     this.pathNodes1 = []; // Lista de nodos del camino actual
     this.pathIndexCurrent = 0; // Índice del nodo actual en el camino
+    this.invisibleTimer = null; // Temporizador para la invisibilidad
+    this.invisibleDuration = 8000; // Tiempo de invisibilidad (8 segundos)
   }
 
   update() {
@@ -1128,6 +1130,29 @@ class ArceusStateMachine {
     this.arceus.setTint(0xff0000);
   }
 
+  reset() {
+    path1 = generatePathForCharacter(grafo, "4,16");
+    pathIndex1 = 0; // Empieza desde el primer nodo de la nueva ruta
+
+    drawPath(graphicsArceus, path1, tileWidth, tileHeight, 0xffff00);
+    pathNodes1 = path1.map((node) => {
+      const [x, y] = node.node.split(",").map(Number);
+      return {
+        x: x * tileWidth + tileWidth / 2,
+        y: y * tileHeight + tileHeight / 2,
+      };
+    });
+    // Establece el primer nodo de la nueva ruta como el objetivo
+    const currentTarget = {
+      position: new Phaser.Math.Vector2(
+        pathNodes1[pathIndex1].x,
+        pathNodes1[pathIndex1].y
+      ),
+    };
+    arriveBehavior2.target = currentTarget; // Asigna el primer nodo de la nueva ruta como objetivo
+    return (this.state = "patrol"); // Vuelve a patrullar    ;
+  }
+
   escape() {
     this.arceus.clearTint();
 
@@ -1152,7 +1177,17 @@ class ArceusStateMachine {
         if (this.pathIndexCurrent >= this.pathNodes1.length) {
           arriveBehavior2.target = null;
           this.arceus.setVisible(false);
-          this.state = "patrol"; // Termina la máquina de estados
+          // Activar el temporizador para que vuelva después de 8 segundos
+          if (this.invisibleTimer) {
+            clearTimeout(this.invisibleTimer);
+          }
+          this.invisibleTimer = setTimeout(() => {
+            this.arceus.setVisible(true); // El personaje se vuelve visible después de 3 segundos
+            this.state = "reset"; // Vuelve a patrullar
+            this.reset(); // Genera una nueva ruta aleatoria
+            // Aquí, reseteamos la velocidad para asegurar que no haya velocidad inicial
+            this.arceus.setVelocity(0, 0); // Restablece la velocidad
+          }, this.invisibleDuration);
         }
       }
     }
@@ -1359,6 +1394,8 @@ class BlueStateMachine {
     // Inicializar estas propiedades correctamente
     this.pathNodes2 = []; // Lista de nodos del camino actual
     this.pathIndexCurrent = 0; // Índice del nodo actual en el camino
+    this.invisibleTimer = null; // Temporizador para la invisibilidad
+    this.invisibleDuration = 2000; // Tiempo de invisibilidad (2 segundos)
   }
 
   update() {
@@ -1404,6 +1441,29 @@ class BlueStateMachine {
     }
   }
 
+  reset() {
+    path2 = generatePathForCharacter(grafo, "27,7");
+    pathIndex2 = 0; // Empieza desde el primer nodo de la nueva ruta
+
+    drawPath(graphicsBlue, path2, tileWidth, tileHeight, 0xffff00);
+    pathNodes2 = path2.map((node) => {
+      const [x, y] = node.node.split(",").map(Number);
+      return {
+        x: x * tileWidth + tileWidth / 2,
+        y: y * tileHeight + tileHeight / 2,
+      };
+    });
+    // Establece el primer nodo de la nueva ruta como el objetivo
+    const currentTarget = {
+      position: new Phaser.Math.Vector2(
+        pathNodes2[pathIndex2].x,
+        pathNodes2[pathIndex2].y
+      ),
+    };
+    arriveBehavior3.target = currentTarget; // Asigna el primer nodo de la nueva ruta como objetivo
+    return (this.state = "patrol"); // Vuelve a patrullar    ;
+  }
+
   patrol() {
     this.blue.clearTint();
   }
@@ -1435,7 +1495,17 @@ class BlueStateMachine {
         if (this.pathIndexCurrent >= this.pathNodes2.length) {
           arriveBehavior3.target = null;
           this.blue.setVisible(false);
-          this.state = "patrol"; // Termina la máquina de estados
+          // Activar el temporizador para que vuelva después de 3 segundos
+          if (this.invisibleTimer) {
+            clearTimeout(this.invisibleTimer);
+          }
+          this.invisibleTimer = setTimeout(() => {
+            this.blue.setVisible(true); // El personaje se vuelve visible después de 2 segundos
+            this.state = "reset"; // Vuelve a patrullar
+            this.reset(); // Genera una nueva ruta aleatoria
+            // Aquí, reseteamos la velocidad para asegurar que no haya velocidad inicial
+            this.blue.setVelocity(0, 0); // Restablece la velocidad
+          }, this.invisibleDuration);
         }
       }
     }
