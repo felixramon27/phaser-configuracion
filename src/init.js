@@ -38,8 +38,6 @@ let graphicsArceus;
 let graphicsBlue;
 let graphicsGreen;
 let iniciar;
-const maxX = 28;
-const maxY = 18;
 
 function generateRandomPosition(grafo) {
   // Suponiendo que `grafo` es un objeto donde las claves son las coordenadas
