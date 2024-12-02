@@ -39,6 +39,10 @@ let graphicsBlue;
 let graphicsGreen;
 let iniciar;
 
+const tacticalPoints = {
+  disadvantageous: ["2,13", "1,13", "20,8"], // Coordenadas de los puntos desventajosos
+};
+
 function generateRandomPosition(grafo) {
   // Suponiendo que `grafo` es un objeto donde las claves son las coordenadas
   const puntosExistentes = Object.keys(grafo); // Obtiene las coordenadas existentes
@@ -262,7 +266,12 @@ let Principal = new Phaser.Class({
       for (let x = 0; x < map.width; x++) {
         const isWalkable = collisionLayer[y][x].index === -1; // Determina si el tile es walkable
 
-        const circleColor = isWalkable ? 0x00ff00 : 0xff0000; // Verde para transitable, rojo para no transitable
+        // Ajusta la comparación para evitar problemas con el espacio
+        const circleColor = tacticalPoints.disadvantageous.includes(`${x},${y}`)
+          ? 0xff0000 // Rojo para nodos desventajosos
+          : isWalkable
+          ? 0x00ff00 // Verde para transitables
+          : 0x0000ff; // Azul para no transitables
         const centerX = x * tileWidth + tileWidth / 2;
         const centerY = y * tileHeight + tileHeight / 2;
 
@@ -622,7 +631,7 @@ let Principal = new Phaser.Class({
       this.gymBlue,
       this.arceus,
       this.vidasBlue,
-      this.vidas,
+      this.vidas
     );
 
     // Agregar colisiones con el mapa green
@@ -1360,7 +1369,12 @@ class GreenStateMachine {
       tileHeight
     );
     let endGraphCoord = destination;
-    let path = pathfindDijkstra(grafo, startGraphCoord, endGraphCoord);
+    let path = pathfindDijkstra(
+      grafo,
+      startGraphCoord,
+      endGraphCoord,
+      tacticalPoints
+    );
     return path;
   }
 

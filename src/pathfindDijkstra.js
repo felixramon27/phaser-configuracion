@@ -69,12 +69,31 @@ class PriorityQueue {
 }
 
 // Dijkstra's Pathfinding Algorithm
-export default function pathfindDijkstra(graph, start, goal) {
+export default function pathfindDijkstra(graph, start, goal, tacticalPoints) {
   class NodeRecord {
     constructor(node, connection, cost) {
       this.node = node;
       this.connection = connection;
       this.cost = cost;
+    }
+  }
+
+  // Copiar el grafo para no modificar el original
+  const graphCopy = JSON.parse(JSON.stringify(graph));
+
+  // Eliminar nodos desventajosos del grafo
+  if (tacticalPoints?.disadvantageous) {
+    for (const disadvantageousNode of tacticalPoints.disadvantageous) {
+      // Eliminar conexiones hacia y desde el nodo desventajoso
+      if (graphCopy[disadvantageousNode]) {
+        delete graphCopy[disadvantageousNode]; // Elimina el nodo desventajoso
+      }
+
+      for (const node in graphCopy) {
+        if (graphCopy[node][disadvantageousNode]) {
+          delete graphCopy[node][disadvantageousNode]; // Elimina conexiones hacia el nodo desventajoso
+        }
+      }
     }
   }
 
