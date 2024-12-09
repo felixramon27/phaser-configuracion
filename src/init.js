@@ -38,6 +38,8 @@ let graphicsArceus;
 let graphicsBlue;
 let graphicsGreen;
 let iniciar;
+let vidasRed = 3;
+let vidasBlue = 3;
 
 const tacticalPoints = {
   disadvantageous: ["2,13", "1,13", "20,8"], // Coordenadas de los puntos desventajosos
