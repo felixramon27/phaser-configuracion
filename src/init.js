@@ -39,8 +39,8 @@ let graphicsBlue;
 let graphicsGreen;
 let iniciar;
 let instrucciones;
-let vidasRed = 3;
-let vidasBlue = 3;
+let vidasRed = 2;
+let vidasBlue = 2;
 
 const tacticalPoints = {
   disadvantageous: ["2,13", "1,13", "20,8"], // Coordenadas de los puntos desventajosos
@@ -71,6 +71,63 @@ function generatePathForCharacter(grafo, ultimoNodo) {
 
   const path = pathfindDijkstra(grafo, start, end);
   return path;
+}
+
+function finDelJuego(mensaje) {
+  // Detener la música
+  this.sound.stopAll();
+
+  // Detener todas las físicas y actualizaciones
+  this.physics.pause();
+
+  // Mostrar mensaje de fin del juego
+  this.add
+    .text(game.config.width / 2, game.config.height / 2, mensaje, {
+      fontSize: "60px",
+      fill: "#ffffff",
+    })
+    .setOrigin(0.5);
+
+  // Configurar un temporizador para volver al menú de inicio después de 4 segundos
+  setTimeout(() => {
+    // Reiniciar el juego al menú de inicio
+    // this.scene.stop("Principal");
+    this.scene.start("Inicio");
+    collisionLayer = undefined;
+    graphics = undefined;
+    kinematicGreen = undefined;
+    arriveBehavior = undefined;
+    fleeBehavior = undefined;
+    currentBehavior = undefined;
+    seekBehavior = undefined;
+    kinematicArceus = undefined;
+    arriveBehavior2 = undefined;
+    currentBehavior2 = undefined;
+    kinematicBlue = undefined;
+    arriveBehavior3 = undefined;
+    currentBehavior3 = undefined;
+    grafo = undefined;
+    path = undefined;
+    path1 = undefined;
+    path2 = undefined;
+    tileWidth = undefined;
+    tileHeight = undefined;
+    mapWidth = undefined;
+    mapHeight = undefined;
+    graphicsArceus = undefined;
+    graphicsBlue = undefined;
+    graphicsGreen = undefined;
+    iniciar = undefined;
+    instrucciones = undefined;
+    pathIndex = 0;
+    pathIndex1 = 0;
+    pathIndex2 = 0;
+    pathNodes = [];
+    pathNodes1 = [];
+    pathNodes2 = [];
+    vidasRed = 2;
+    vidasBlue = 2;
+  }, 4000);
 }
 
 let Inicio = new Phaser.Class({
@@ -269,11 +326,11 @@ let Instrucciones = new Phaser.Class({
       game.config.width / 2,
       game.config.height / 2,
       "1-Para ganar la partida debes derrotar a Blue.\n" +
-        "2-Controlas a Red y ambos tienen 3 vidas.\n" +
+        "2-Controlas a Red y ambos tienen 2 vidas.\n" +
         "3-Para quitarle una vida a Blue, pide ayuda a Arceus.\n" +
         "4-Si Blue te persigue, puede quitarte una vida.\n" +
         "5-Recupera una vida acercándote a Green.\n" +
-        "7-Green se recarga después de ayudarte.\n" +
+        "7-Green se va preparar comida después de ayudarte.\n" +
         "8-Si usas a Arceus, Blue huirá a su gimnasio.\n" +
         "9-Si Blue huye, no puedes dañarlo hasta que Arceus vuelva.\n" +
         "10-Arceus se recupera en su cueva después de ayudarte.",
@@ -797,9 +854,28 @@ let Principal = new Phaser.Class({
     //   this.vidasBlue.play("perderVidaBlue"); // Animación de pérdida de vida
     // });
 
+    // Inicializa la bandera en el constructor o en la función create
+    this.canRecoverLife = true;
+
     this.physics.add.overlap(this.red, this.green, () => {
+      if (vidasRed >= 2 || !this.canRecoverLife) {
+        return;
+      }
+
       this.vidas.play("ganarVida"); // Animación de ganar vida
+      vidasRed++;
+      this.canRecoverLife = false; // Deshabilitar la recuperación de vida temporalmente
+
+      // Rehabilitar la recuperación de vida después de 10 segundos
+      this.time.addEvent({
+        delay: 10000, // 10 segundos en milisegundos
+        callback: () => {
+          this.canRecoverLife = true;
+        },
+        callbackScope: this,
+      });
     });
+
     // this.physics.add.collider(this.green, this.red);
     // this.physics.add.collider(this.arceus, this.red);
     // this.physics.add.collider(this.blue, this.red);
@@ -894,6 +970,13 @@ let Principal = new Phaser.Class({
 
   update(time, delta) {
     let lastFrame = 0; // Variable para guardar el último frame
+
+    if (vidasBlue === 0) {
+      finDelJuego.call(this, "¡¡¡¡¡¡¡¡ ¡Has ganado la partida! ¡¡¡¡¡¡¡");
+    }
+    if (vidasRed === 0) {
+      finDelJuego.call(this, "¡¡¡¡¡¡¡¡ ¡Has perdido la partida! ¡¡¡¡¡¡¡");
+    }
 
     this.greenStateMachine.update(); // Actualiza el estado del Green
     this.arceusStateMachine.update(); // Actualiza el estado del Arceus
@@ -1563,6 +1646,8 @@ class BlueStateMachine {
     this.pathIndexCurrent = 0; // Índice del nodo actual en el camino
     this.invisibleTimer = null; // Temporizador para la invisibilidad
     this.invisibleDuration = 2000; // Tiempo de invisibilidad (2 segundos)
+    this.justLostLife = false; // Bandera para controlar la pérdida de vida
+    this.blueJustLostLife = false;
   }
 
   update() {
@@ -1594,9 +1679,17 @@ class BlueStateMachine {
             this.blue.y,
             this.red.x,
             this.red.y
-          ) < 50
+          ) < 50 &&
+          !this.justLostLife
         ) {
-          this.vidas.play("perderVida");
+          if (vidasRed > 1) {
+            this.vidas.play("perderVida");
+          }
+          vidasRed--;
+          this.justLostLife = true; // Marcar como que una vida ha sido perdida
+          setTimeout(() => {
+            this.justLostLife = false; // Permitir perder vida nuevamente después de 1 segundo
+          }, 5000);
         }
 
         if (
@@ -1679,9 +1772,17 @@ class BlueStateMachine {
         this.blue.y,
         this.red.x,
         this.red.y
-      ) < this.detectionRadius
+      ) < this.detectionRadius &&
+      !this.blueJustLostLife
     ) {
-      this.vidasBlue.play("perderVidaBlue");
+      if (vidasBlue > 1) {
+        this.vidasBlue.play("perderVidaBlue");
+      }
+      vidasBlue--;
+      this.blueJustLostLife = true; // Marcar como que una vida ha sido perdida
+      setTimeout(() => {
+        this.blueJustLostLife = false; // Permitir perder vida nuevamente después de 1 segundo
+      }, 5000);
     }
 
     if (this.pathNodes2 && this.pathIndexCurrent < this.pathNodes2.length) {
@@ -1705,7 +1806,10 @@ class BlueStateMachine {
         if (this.pathIndexCurrent >= this.pathNodes2.length) {
           arriveBehavior3.target = null;
           this.blue.setVisible(false);
-          this.vidasBlue.play("ganarVidaBlue");
+          if (vidasBlue < 2) {
+            this.vidasBlue.play("ganarVidaBlue");
+            vidasBlue++;
+          }
           // Activar el temporizador para que vuelva después de 3 segundos
           if (this.invisibleTimer) {
             clearTimeout(this.invisibleTimer);
