@@ -38,6 +38,7 @@ let graphicsArceus;
 let graphicsBlue;
 let graphicsGreen;
 let iniciar;
+let instrucciones;
 let vidasRed = 3;
 let vidasBlue = 3;
 
@@ -113,7 +114,7 @@ let Inicio = new Phaser.Class({
       .text(
         game.config.width / 2,
         game.config.height - 50,
-        "Presiona ENTER para iniciar",
+        "Presiona ENTER para iniciar o I para ver las instrucciones",
         {
           fontSize: "20px",
           fill: "#ffffff",
@@ -125,6 +126,24 @@ let Inicio = new Phaser.Class({
       game.config.width / 2,
       game.config.height / 2,
       "Iniciar",
+      {
+        fontSize: "40px",
+        fill: "#ffffff",
+        stroke: "#FF0000",
+        strokeThickness: 6,
+        shadow: {
+          offsetX: 2,
+          offsetY: 2,
+          color: "#FF0000",
+          blur: 2,
+          fill: true,
+        },
+      }
+    );
+    let textoInstrucciones = this.add.text(
+      game.config.width / 2,
+      game.config.height / 2 + 50,
+      "Instrucciones",
       {
         fontSize: "40px",
         fill: "#ffffff",
@@ -157,6 +176,23 @@ let Inicio = new Phaser.Class({
       });
     });
 
+    textoInstrucciones.setOrigin(0.5);
+    textoInstrucciones.setInteractive();
+    textoInstrucciones.on("pointerover", () => {
+      textoInstrucciones.setStyle({ fill: "#ffcc00" });
+    });
+    textoInstrucciones.on("pointerout", () => {
+      textoInstrucciones.setStyle({ fill: "#ffffff" });
+    });
+
+    textoInstrucciones.on("pointerdown", () => {
+      clickSound.play();
+      this.cameras.main.fadeOut(500);
+      this.cameras.main.once("camerafadeoutcomplete", () => {
+        this.scene.start("Instrucciones");
+      });
+    });
+
     let efecto = this.tweens.add({
       targets: texto,
       y: game.config.height / 2 + 10,
@@ -166,14 +202,126 @@ let Inicio = new Phaser.Class({
       repeat: -1,
     });
 
+    let efectoInstrucciones = this.tweens.add({
+      targets: textoInstrucciones,
+      y: game.config.height / 2 + 60,
+      duration: 800,
+      ease: "Sine.easeInOut",
+      yoyo: true,
+      repeat: -1,
+    });
+
     iniciar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    instrucciones = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.I
+    );
     iniciar.reset();
+    instrucciones.reset();
   },
 
   update() {
     if (iniciar.isDown) {
       this.scene.start("Principal");
     }
+    if (instrucciones.isDown) {
+      // this.sound.play("musica");
+      this.cameras.main.fadeOut(500);
+      this.cameras.main.once("camerafadeoutcomplete", () => {
+        this.scene.start("Instrucciones");
+      });
+    }
+  },
+});
+
+let Instrucciones = new Phaser.Class({
+  Extends: Phaser.Scene,
+  initialize: function Instrucciones() {
+    Phaser.Scene.call(this, { key: "Instrucciones" });
+  },
+  preload() {
+    this.load.image("fondo", "assets/image.png");
+    this.load.audio("musica", "assets/selecciondemenu.flac");
+  },
+  create() {
+    let fondo = this.add.image(
+      game.config.width / 2,
+      game.config.height / 2,
+      "fondo"
+    );
+    fondo.setOrigin(0.5);
+    fondo.setScale(0.9);
+
+    let textoCabecera = this.add.text(
+      game.config.width / 2,
+      game.config.height / 4,
+      "Instrucciones",
+      {
+        fontSize: "50px",
+        fill: "#ffcc00",
+        fontStyle: "bold",
+        stroke: "#000000",
+        strokeThickness: 8,
+      }
+    );
+    textoCabecera.setOrigin(0.5);
+
+    let instruccionesTexto = this.add.text(
+      game.config.width / 2,
+      game.config.height / 2,
+      "1-Para ganar la partida debes derrotar a Blue.\n" +
+        "2-Controlas a Red y ambos tienen 3 vidas.\n" +
+        "3-Para quitarle una vida a Blue, pide ayuda a Arceus.\n" +
+        "4-Si Blue te persigue, puede quitarte una vida.\n" +
+        "5-Recupera una vida acercándote a Green.\n" +
+        "7-Green se recarga después de ayudarte.\n" +
+        "8-Si usas a Arceus, Blue huirá a su gimnasio.\n" +
+        "9-Si Blue huye, no puedes dañarlo hasta que Arceus vuelva.\n" +
+        "10-Arceus se recupera en su cueva después de ayudarte.",
+      {
+        fontSize: "40px",
+        fill: "#ffcc00",
+        fontStyle: "bold",
+        stroke: "#000000",
+        strokeThickness: 8,
+        wordWrap: { width: game.config.width - 40, useAdvancedWrap: true },
+      }
+    );
+    instruccionesTexto.setOrigin(0.5, 0.5);
+
+    let backButton = this.add.text(
+      game.config.width / 2,
+      game.config.height - 50,
+      "Volver",
+      {
+        fontSize: "40px",
+        fill: "#ffffff",
+        stroke: "#FF0000",
+        strokeThickness: 6,
+        shadow: {
+          offsetX: 2,
+          offsetY: 2,
+          color: "#FF0000",
+          blur: 2,
+          fill: true,
+        },
+      }
+    );
+    backButton.setOrigin(0.5);
+    backButton.setInteractive();
+    backButton.on("pointerover", () => {
+      backButton.setStyle({ fill: "#ffcc00" });
+    });
+    backButton.on("pointerout", () => {
+      backButton.setStyle({ fill: "#ffffff" });
+    });
+
+    backButton.on("pointerdown", () => {
+      this.sound.play("musica");
+      this.cameras.main.fadeOut(500);
+      this.cameras.main.once("camerafadeoutcomplete", () => {
+        this.scene.start("Inicio");
+      });
+    });
   },
 });
 
@@ -956,8 +1104,8 @@ let Principal = new Phaser.Class({
         this.arceus.x = kinematicArceus.position.x;
         this.arceus.y = kinematicArceus.position.y;
         const direction2 = new Phaser.Math.Vector2(
-          this.arceus.x,
-          this.arceus.y
+          steeringArceus.linear.x,
+          steeringArceus.linear.y
         ).normalize();
         if (direction2.length() > 0) {
           // Determina la animación de "arceus" según la dirección
@@ -988,8 +1136,8 @@ let Principal = new Phaser.Class({
         this.blue.x = kinematicBlue.position.x;
         this.blue.y = kinematicBlue.position.y;
         const direction3 = new Phaser.Math.Vector2(
-          this.blue.x,
-          this.blue.y
+          steeringBlue.linear.x,
+          steeringBlue.linear.y
         ).normalize();
         if (direction3.length() > 0) {
           // Determina la animación de "blue" según la dirección
@@ -1044,8 +1192,8 @@ let Principal = new Phaser.Class({
 
         // Calcula la dirección en la que "green" se está moviendo con respecto a "red"
         const direction = new Phaser.Math.Vector2(
-          this.green.x,
-          this.green.y
+          steeringGreen.linear.x,
+          steeringGreen.linear.y
         ).normalize();
 
         if (direction.length() > 0) {
@@ -1616,7 +1764,7 @@ const config = {
       debug: true, // Cambia a true si quieres ver las líneas de colisión y depuración
     },
   },
-  scene: [Inicio, Principal],
+  scene: [Inicio, Instrucciones, Principal],
 };
 
 const game = new Phaser.Game(config);
