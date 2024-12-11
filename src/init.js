@@ -1996,8 +1996,12 @@ const config = {
     default: "arcade", // Asegúrate de que este campo está presente
     arcade: {
       gravity: { y: 0 }, // Puedes cambiar la gravedad si lo necesitas
-      debug: true, // Cambia a true si quieres ver las líneas de colisión y depuración
+      debug: false, // Cambia a true si quieres ver las líneas de colisión y depuración
     },
+  },
+  fps: {
+    target: 30, // Ajusta esto al valor deseado, por ejemplo 30 FPS
+    forceSetTimeOut: true, // Asegura que el límite se aplique usando setTimeout
   },
   scene: [Inicio, Instrucciones, Principal],
 };
