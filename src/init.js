@@ -42,9 +42,63 @@ let instrucciones;
 let vidasRed = 2;
 let vidasBlue = 2;
 
+// const tacticalPoints = {
+//   disadvantageous: ["6,9", "1,13", "17,7", "23,2", "10,9"], // Coordenadas de los puntos desventajosos
+//   advantageous: ["2,10", "4,12", "20,10", "13,2", "13,12"], // Coordenadas de los puntos ventajosos
+// };
 const tacticalPoints = {
-  disadvantageous: ["2,13", "1,13", "20,8"], // Coordenadas de los puntos desventajosos
+  disadvantageous: [],
+  advantageous: [],
 };
+
+const tacticalValues = {
+  disadvantageous: -3,
+  advantageous: 5,
+};
+
+function isTacticalPoint(x, y, points) {
+  return points.some((point) => {
+    const [px, py] = point.split(",").map(Number);
+    return px === x && py === y;
+  });
+}
+
+function getRandomInt(max) {
+  return Math.floor(Math.random() * max);
+}
+
+function generateTacticalPoints(
+  collisionLayer,
+  mapWidth,
+  mapHeight,
+  numPoints
+) {
+  while (
+    tacticalPoints.disadvantageous.length < numPoints ||
+    tacticalPoints.advantageous.length < numPoints
+  ) {
+    const x = getRandomInt(mapWidth);
+    const y = getRandomInt(mapHeight);
+    const key = `${x},${y}`;
+
+    if (collisionLayer[y][x].index === -1) {
+      // Verifica si el tile es caminable
+      if (
+        tacticalPoints.disadvantageous.length < numPoints &&
+        !tacticalPoints.disadvantageous.includes(key)
+      ) {
+        tacticalPoints.disadvantageous.push(key);
+      } else if (
+        tacticalPoints.advantageous.length < numPoints &&
+        !tacticalPoints.advantageous.includes(key)
+      ) {
+        tacticalPoints.advantageous.push(key);
+      }
+    }
+  }
+
+  return tacticalPoints;
+}
 
 function generateRandomPosition(grafo) {
   // Suponiendo que `grafo` es un objeto donde las claves son las coordenadas
@@ -468,22 +522,35 @@ let Principal = new Phaser.Class({
     graphics.strokePath();
 
     collisionLayer = map.layers[2].data; // `mapData` es tu archivo `map.json`
+    const numPoints = 8; // Número de puntos ventajosos y desventajosos que deseas generar
+    const tacticalPoints = generateTacticalPoints(
+      collisionLayer,
+      map.width,
+      map.height,
+      numPoints
+    );
+
+    console.log(tacticalPoints); // Muestra los puntos generados
 
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         const isWalkable = collisionLayer[y][x].index === -1; // Determina si el tile es walkable
 
-        // Ajusta la comparación para evitar problemas con el espacio
-        const circleColor = tacticalPoints.disadvantageous.includes(`${x},${y}`)
-          ? 0xff0000 // Rojo para nodos desventajosos
-          : isWalkable
-          ? 0x00ff00 // Verde para transitables
-          : 0x0000ff; // Azul para no transitables
-        const centerX = x * tileWidth + tileWidth / 2;
-        const centerY = y * tileHeight + tileHeight / 2;
+        let circleColor = null;
 
-        graphics.fillStyle(circleColor, 0.5); // Ajusta la transparencia si lo deseas
-        graphics.fillCircle(centerX, centerY, tileWidth / 10); // Ajusta el tamaño del círculo si es necesario
+        if (tacticalPoints.disadvantageous.includes(`${x},${y}`)) {
+          circleColor = 0xff0000; // Rojo para nodos desventajosos
+        } else if (tacticalPoints.advantageous.includes(`${x},${y}`)) {
+          circleColor = 0x0000ff; // Azul para nodos ventajosos
+        }
+
+        if (circleColor !== null) {
+          const centerX = x * tileWidth + tileWidth / 2;
+          const centerY = y * tileHeight + tileHeight / 2;
+
+          graphics.fillStyle(circleColor, 0.5); // Ajusta la transparencia si lo deseas
+          graphics.fillCircle(centerX, centerY, tileWidth / 10); // Ajusta el tamaño del círculo si es necesario
+        }
       }
     }
 
@@ -500,9 +567,9 @@ let Principal = new Phaser.Class({
     path1 = generatePathForCharacter(grafo);
     path2 = generatePathForCharacter(grafo);
 
-    drawPath(graphicsGreen, path, map.tileWidth, map.tileHeight, 0xffff00);
-    drawPath(graphicsArceus, path1, map.tileWidth, map.tileHeight, 0xffff00);
-    drawPath(graphicsBlue, path2, map.tileWidth, map.tileHeight, 0xffff00);
+    // drawPath(graphicsGreen, path, map.tileWidth, map.tileHeight, 0xffff00);
+    // drawPath(graphicsArceus, path1, map.tileWidth, map.tileHeight, 0xffff00);
+    // drawPath(graphicsBlue, path2, map.tileWidth, map.tileHeight, 0xffff00);
 
     // Animaciones de red al caminar
     this.anims.create({
@@ -904,7 +971,7 @@ let Principal = new Phaser.Class({
       0
     );
 
-    // Inicializa el comportamiento de Arrive para green siguiendo a red
+    // Inicializa el comportamiento de Arrive para green siguiendo el camino
     arriveBehavior = new Arrive(
       kinematicGreen,
       {
@@ -1055,7 +1122,7 @@ let Principal = new Phaser.Class({
           });
 
           // Dibuja la nueva ruta
-          drawPath(graphicsGreen, path, tileWidth, tileHeight, 0xffff00);
+          // drawPath(graphicsGreen, path, tileWidth, tileHeight, 0xffff00);
 
           // Establece el primer nodo de la nueva ruta como el objetivo
           const currentTarget = {
@@ -1107,7 +1174,7 @@ let Principal = new Phaser.Class({
           });
 
           // Dibuja la nueva ruta
-          drawPath(graphicsArceus, path1, tileWidth, tileHeight, 0xffff00);
+          // drawPath(graphicsArceus, path1, tileWidth, tileHeight, 0xffff00);
 
           // Establece el primer nodo de la nueva ruta como el objetivo
           const currentTarget = {
@@ -1159,7 +1226,7 @@ let Principal = new Phaser.Class({
           });
 
           // Dibuja la nueva ruta
-          drawPath(graphicsBlue, path2, tileWidth, tileHeight, 0xffff00);
+          // drawPath(graphicsBlue, path2, tileWidth, tileHeight, 0xffff00);
 
           // Establece el primer nodo de la nueva ruta como el objetivo
           const currentTarget = {
@@ -1376,7 +1443,7 @@ class ArceusStateMachine {
     path1 = generatePathForCharacter(grafo, "4,16");
     pathIndex1 = 0; // Empieza desde el primer nodo de la nueva ruta
 
-    drawPath(graphicsArceus, path1, tileWidth, tileHeight, 0xffff00);
+    // drawPath(graphicsArceus, path1, tileWidth, tileHeight, 0xffff00);
     pathNodes1 = path1.map((node) => {
       const [x, y] = node.node.split(",").map(Number);
       return {
@@ -1460,7 +1527,7 @@ class ArceusStateMachine {
     });
 
     this.pathIndexCurrent = 0; // Reinicia el índice de camino
-    drawPath(graphicsArceus, newPath, tileWidth, tileHeight, 0x8000ff);
+    // drawPath(graphicsArceus, newPath, tileWidth, tileHeight, 0x8000ff);
   }
 }
 
@@ -1528,7 +1595,7 @@ class GreenStateMachine {
     path = generatePathForCharacter(grafo, "6,2");
     pathIndex = 0; // Empieza desde el primer nodo de la nueva ruta
 
-    drawPath(graphicsGreen, path, tileWidth, tileHeight, 0xffff00);
+    // drawPath(graphicsGreen, path, tileWidth, tileHeight, 0xffff00);
     pathNodes = path.map((node) => {
       const [x, y] = node.node.split(",").map(Number);
       return {
@@ -1624,7 +1691,7 @@ class GreenStateMachine {
     });
 
     this.pathIndexCurrent = 0; // Reinicia el índice de camino
-    drawPath(graphicsGreen, newPath, tileWidth, tileHeight, 0x8000ff);
+    // drawPath(graphicsGreen, newPath, tileWidth, tileHeight, 0x8000ff);
   }
 }
 
@@ -1648,6 +1715,9 @@ class BlueStateMachine {
     this.invisibleDuration = 2000; // Tiempo de invisibilidad (2 segundos)
     this.justLostLife = false; // Bandera para controlar la pérdida de vida
     this.blueJustLostLife = false;
+
+    // Velocidades base
+    this.speedMultiplier = new Phaser.Math.Vector2(1, 1);
   }
 
   update() {
@@ -1692,6 +1762,8 @@ class BlueStateMachine {
           }, 5000);
         }
 
+        this.checkTacticalPoints();
+
         if (
           Phaser.Math.Distance.Between(
             this.arceus.x,
@@ -1725,6 +1797,65 @@ class BlueStateMachine {
     }
   }
 
+  checkTacticalPoints() {
+    let isAdvantageous = false;
+    let isDisadvantageous = false;
+
+    // Verifica puntos ventajosos
+    tacticalPoints.advantageous.forEach((point) => {
+      const [x, y] = point.split(",").map(Number);
+      const pointPosition = new Phaser.Math.Vector2(
+        x * tileWidth + tileWidth / 2,
+        y * tileHeight + tileHeight / 2
+      );
+      if (
+        Phaser.Math.Distance.Between(
+          this.blue.x,
+          this.blue.y,
+          pointPosition.x,
+          pointPosition.y
+        ) <= 50
+      ) {
+        isAdvantageous = true;
+      }
+    });
+
+    // Verifica puntos desventajosos
+    tacticalPoints.disadvantageous.forEach((point) => {
+      const [x, y] = point.split(",").map(Number);
+      const pointPosition = new Phaser.Math.Vector2(
+        x * tileWidth + tileWidth / 2,
+        y * tileHeight + tileHeight / 2
+      );
+      if (
+        Phaser.Math.Distance.Between(
+          this.blue.x,
+          this.blue.y,
+          pointPosition.x,
+          pointPosition.y
+        ) <= 50
+      ) {
+        isDisadvantageous = true;
+      }
+    });
+
+    if (isAdvantageous) {
+      this.blue.setTint(0x0000ff); // Cambia el color a azul
+      arriveBehavior3.maxSpeed = 300; // Aumenta la velocidad
+      arriveBehavior3.maxAcceleration = 200; // Aumenta la aceleración
+    } else if (isDisadvantageous) {
+      this.blue.setTint(0xffff00); // Cambia el color a amarillo
+      arriveBehavior3.maxSpeed = 50; // Reduce la velocidad
+      arriveBehavior3.maxAcceleration = 50; // Reduce la aceleración
+    } else {
+      this.blue.clearTint(); // Restablece el color
+      this.speedMultiplier = 1; // Restablece la velocidad
+    }
+
+    // Aplicar la velocidad ajustada
+    this.blue.setVelocity(1 * this.speedMultiplier, 1 * this.speedMultiplier);
+  }
+
   changeState(newState) {
     this.state = newState;
     if (newState === "escape") {
@@ -1736,7 +1867,7 @@ class BlueStateMachine {
     path2 = generatePathForCharacter(grafo, "27,7");
     pathIndex2 = 0; // Empieza desde el primer nodo de la nueva ruta
 
-    drawPath(graphicsBlue, path2, tileWidth, tileHeight, 0xffff00);
+    // drawPath(graphicsBlue, path2, tileWidth, tileHeight, 0xffff00);
     pathNodes2 = path2.map((node) => {
       const [x, y] = node.node.split(",").map(Number);
       return {
@@ -1851,7 +1982,7 @@ class BlueStateMachine {
     });
 
     this.pathIndexCurrent = 0; // Reinicia el índice de camino
-    drawPath(graphicsBlue, newPath, tileWidth, tileHeight, 0x8000ff);
+    // drawPath(graphicsBlue, newPath, tileWidth, tileHeight, 0x8000ff);
   }
 }
 
